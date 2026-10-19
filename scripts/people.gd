@@ -156,4 +156,17 @@ static func specials(line: Dictionary) -> Array:
 			"truth": "valide", "ok": "Excellent travail. Je le noterai dans mon rapport.",
 			"fine_reaction": "Vous venez de mettre une amende à votre inspecteur. Ce sera dans mon rapport...",
 		},
+		{
+	"id": "oldman", "special": true, "name": "Pépé Raymond", "model": "Oldman",
+	"model_height": 1.7,
+	"body": Color(0.45, 0.4, 0.38), "legs": Color(0.25, 0.25, 0.28),
+	"skin": Color(0.9, 0.78, 0.7), "hair": Color(0.75, 0.75, 0.78),
+	"role": "kiss_oldman",
+	"greet": "Hein ? Contrôle ? J’ai ma carte senior… quelque part.",
+	"ticket": {"kind": "Abonnement Senior", "line": 0, "valide": true,
+		"detail": "Valable jusqu'au " + Game.date_str(_date_offset(15))},
+	"truth": "valide",
+	"ok": "Merci mon garçon.",
+	"fine_reaction": "Une amende ? À mon âge ? Vous n’avez pas honte ?",
+},
 	]
