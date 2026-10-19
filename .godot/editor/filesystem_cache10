@@ -1,7 +1,9 @@
 78098b89c88a74ebe8c20117b8754620
 ::res://::1792444982
 LISEZ-MOI.txt::TextFile::-1::1792428532::0::1::::<><><>0<>0<><>::
-::res://models/::1792439692
+::res://models/::1792445497
+Homme1.glb::PackedScene::7886060590671742857::1585117354::1792445493::1::::<><><>0<>0<>991c8f88b6be1017ece206e17251c026<>res://.godot/imported/Homme1.glb-ab02816a72be4d6da274b0d11a37d8b8.scn::uid://cepgycgfphckk::::res://models/Homme1_0.png<>uid://bskrti1o1xbhm::::res://models/Homme1_1.png<>uid://dhulgf52p3t3c::::res://models/Homme1_2.png
+Homme2.glb::PackedScene::5115678405259472008::1585117354::1792445497::1::::<><><>0<>0<>13787f400a191e810839415b0843302c<>res://.godot/imported/Homme2.glb-dabd5745456cbfbea10214eddf2ecf51.scn::uid://cv5lvwq874va0::::res://models/Homme2_0.png<>uid://clhlbpd5j056e::::res://models/Homme2_1.png<>uid://ddr4x0qhsn53q::::res://models/Homme2_2.png
 LISEZ-MOI.txt::TextFile::-1::1792434853::0::1::::<><><>0<>0<><>::
 marie_rose.glb::PackedScene::3523371572651810355::1792424916::1792432529::1::::<><><>0<>0<>52c866e30f5aecab81beb89dc290a529<>res://.godot/imported/marie_rose.glb-01c111a21596c120d23e66937a00c5fa.scn::uid://dj4ksl08ig15d::::res://models/marie_rose_0.png<>uid://yydymg32bpln::::res://models/marie_rose_1.jpg<>uid://bby0jp71r4ntg::::res://models/marie_rose_2.png<>uid://bkp0rlsrfxkfb::::res://models/marie_rose_3.png<>uid://dw0jfwtphf6tc::::res://models/marie_rose_4.png<>uid://baweb201th7gt::::res://models/marie_rose_5.png<>uid://v1a6jscxe7ew::::res://models/marie_rose_6.png<>uid://pr4vtplxccu1::::res://models/marie_rose_7.png<>uid://xmjf41shhpa0::::res://models/marie_rose_8.jpg<>uid://tvlw5ju5tko1::::res://models/marie_rose_9.jpg<>uid://d2tcxbxri7jnp::::res://models/marie_rose_10.png<>uid://b7yvs0q1bqv4c::::res://models/marie_rose_11.png<>uid://ngcrbgc713tv::::res://models/marie_rose_13.png<>uid://tcelru30xbs8::::res://models/marie_rose_14.png<>uid://ybx1owgl77ru::::res://models/marie_rose_15.png<>uid://bgjuady6eswxd::::res://models/marie_rose_16.png
 marie_rose_0.png::CompressedTexture2D::7851468530794569463::1792432524::1792432572::1::::<><><>0<>0<>89ff710fa307faeb8121816182522b6a<>res://.godot/imported/marie_rose_0.png-698c6f2c48e9b7f1dd473a8f08b07352.s3tc.ctex::
@@ -28,6 +30,12 @@ Oldman.glb::PackedScene::1554082569954724870::1585117354::1792439692::1::::<><><
 Oldman_0.png::CompressedTexture2D::4821218987584688228::1792439670::1792439692::1::::<><><>0<>0<>b1ed6a144f2ba294d7107251290bfc8d<>res://.godot/imported/Oldman_0.png-d73c8c80eb3cf21227f86cf462832561.s3tc.ctex::
 Oldman_1.png::CompressedTexture2D::3120349865802877136::1792439671::1792439692::1::::<><><>0<>0<>ec18d07e7d41ae0d59091d564467d6ca<>res://.godot/imported/Oldman_1.png-afb116e14420210656089cab7a0a66b5.s3tc.ctex::
 Oldman_2.png::CompressedTexture2D::8647496146229460849::1792439673::1792439692::1::::<><><>0<>0<>28f9e3a7ce2d8371b504dee699babd70<>res://.godot/imported/Oldman_2.png-a967b690368be5dfcc96b9021b2a0923.s3tc.ctex::
+Homme1_0.png::CompressedTexture2D::5084969683822571310::1792445489::1792445497::1::::<><><>0<>0<>166f5c953988582df33dac6d7001baad<>res://.godot/imported/Homme1_0.png-bf1e994172af8578365632769cfe073e.s3tc.ctex::
+Homme1_1.png::CompressedTexture2D::3671530226702966678::1792445490::1792445497::1::::<><><>0<>0<>857f4e65ec826a6f8bc08186146df910<>res://.godot/imported/Homme1_1.png-6dc509b7d2e76cb40af1cd31a98d7bf2.s3tc.ctex::
+Homme1_2.png::CompressedTexture2D::7692550423519393974::1792445491::1792445497::1::::<><><>0<>0<>03ba8970bcf5e86178d652e169563194<>res://.godot/imported/Homme1_2.png-c963fcaece068888a5511f3af361df18.s3tc.ctex::
+Homme2_0.png::CompressedTexture2D::6309444986772979061::1792445493::1792445497::1::::<><><>0<>0<>89374a069b0b1bc1f7afe0c73ff1caaf<>res://.godot/imported/Homme2_0.png-5274d87db3f10c1e48209f8b0f05db2f.s3tc.ctex::
+Homme2_1.png::CompressedTexture2D::5560039758258086258::1792445494::1792445497::1::::<><><>0<>0<>0935e9869c6de029a26528a73840a28f<>res://.godot/imported/Homme2_1.png-34612556ee8925454eddb59578939d97.s3tc.ctex::
+Homme2_2.png::CompressedTexture2D::7406726208005729448::1792445495::1792445497::1::::<><><>0<>0<>bfa780e5ba60fa601e879ccf051e64da<>res://.godot/imported/Homme2_2.png-8be9c2f8f57c25888c1747ffff8b0555.s3tc.ctex::
 tiph.glb::PackedScene::7273072346710801510::1792431495::1792432529::1::::<><><>0<>0<>44564fd8200bd3b58699c64293d4264d<>res://.godot/imported/tiph.glb-907b70ee3ee0fd7def8d79f044c27b31.scn::uid://cgf24ufoybofc::::res://models/tiph_0.png
 tiph_0.png::CompressedTexture2D::5205988523671880428::1792432529::1792432574::1::::<><><>0<>0<>eefbc9757213ef8259e411f4d6779ec7<>res://.godot/imported/tiph_0.png-f9167e3d1377310b3f7686b17e5e5963.s3tc.ctex::
 tiph_chinese.glb::PackedScene::2184347796874979736::1792431560::1792432553::1::::<><><>0<>0<>adeade7ce289c76a0e36a1a52704411b<>res://.godot/imported/tiph_chinese.glb-0b2ff6c1c6625ef2279ac80cbb20138e.scn::uid://37ihjo88uuc7::::res://models/tiph_chinese_2.png<>uid://dp7dw4vb1xdsp::::res://models/tiph_chinese_5.png<>uid://bwml3vvon10xx::::res://models/tiph_chinese_6.png<>uid://1ca48u3gbfhg::::res://models/tiph_chinese_7.png<>uid://ctowi63covmux::::res://models/tiph_chinese_8.png<>uid://rr3uu1dka4gi::::res://models/tiph_chinese_9.png<>uid://bovenlasvbpof::::res://models/tiph_chinese_11.png<>uid://b4qijxgog6vx3::::res://models/tiph_chinese_13.png<>uid://u2mwkff1kfyi::::res://models/tiph_chinese_14.png<>uid://52xk8w4gqng0::::res://models/tiph_chinese_0.png
@@ -61,7 +69,7 @@ tiph_enfant_9.png::CompressedTexture2D::7271222829174648532::1792432561::1792432
 bilan.tscn::PackedScene::-1::1792427410::0::1::::<><><>0<>0<><>::res://scripts/bilan.gd
 bus.tscn::PackedScene::-1::1792427410::0::1::::<><><>0<>0<><>::res://scripts/bus.gd
 hall.tscn::PackedScene::-1::1792427410::0::1::::<><><>0<>0<><>::res://scripts/hall.gd
-::res://scripts/::1792444969
+::res://scripts/::1792444982
 autotest.gd::GDScript::8381581898120803958::1792428098::0::1::::<>Node<><>0<>0<><>::
 bilan.gd::GDScript::7592111177285210499::1792427407::0::1::::<>Control<><>0<>0<><>::
 build.gd::GDScript::6987842099350260980::1792428085::0::1::::Build<>RefCounted<><>0<>0<><>::
@@ -74,7 +82,7 @@ interactable.gd::GDScript::7723161679432427752::1792427161::0::1::::Interactable
 model_fit.gd::GDScript::8021398657732735799::1792434572::0::1::::ModelFit<>RefCounted<><>0<>0<><>::
 ordinary_visual.gd::GDScript::7510143248711441276::1792444830::0::1::::<>RefCounted<><>0<>0<><>::
 passenger.gd::GDScript::4290177380092166549::1792444777::0::1::::Passenger<>StaticBody3D<><>0<>0<><>::
-people.gd::GDScript::3133333984354874882::1792441964::0::1::::People<>RefCounted<><>0<>0<><>::
+people.gd::GDScript::3133333984354874882::1792445486::0::1::::People<>RefCounted<><>0<>0<><>::
 player.gd::GDScript::1811386043799532974::1792430754::0::1::::Player<>CharacterBody3D<><>0<>0<><>::
 ticket_ui.gd::GDScript::6632871385774314162::1792427288::0::1::::TicketUI<>CanvasLayer<><>0<>0<><>::
 ::res://shaders/::1792444024
