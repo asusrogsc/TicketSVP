@@ -176,7 +176,7 @@ static func specials(line: Dictionary) -> Array:
 			"fine_reaction": "Une amende ? À mon âge ? Vous n’avez pas honte ?",
 		},
 		{
-			"id": "homme1", "special": true, "name": "Pépé Raymond", "model": "Homme1",
+			"id": "homme1", "special": true, "name": "Roshi", "model": "Homme1",
 			"model_height": 1.7,
 			"body": Color(0.45, 0.4, 0.38), "legs": Color(0.25, 0.25, 0.28),
 			"skin": Color(0.9, 0.78, 0.7), "hair": Color(0.75, 0.75, 0.78),
@@ -189,7 +189,7 @@ static func specials(line: Dictionary) -> Array:
 			"fine_reaction": "Une amende ? À mon âge ? Vous n’avez pas honte ?",
 		},
 		{
-			"id": "homme2", "special": true, "name": "Pépé Raymond", "model": "Homme2",
+			"id": "homme2", "special": true, "name": "Alex", "model": "Homme2",
 			"model_height": 1.7,
 			"body": Color(0.45, 0.4, 0.38), "legs": Color(0.25, 0.25, 0.28),
 			"skin": Color(0.9, 0.78, 0.7), "hair": Color(0.75, 0.75, 0.78),

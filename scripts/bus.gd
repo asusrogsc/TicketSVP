@@ -8,8 +8,14 @@ const STOP_TIME := 8.0        # arrêt par défaut, portes ouvertes (réglable p
 const WRAP_BACK := 80.0
 const WRAP_LEN := 320.0
 const DOOR_Z := 0.0           # porte du milieu (côté droit, +X)
-const SPECIALS_MIN := 2       # personnages spéciaux par trajet (minimum)
+const BOARD_MIN := 8          # passagers qui montent à chaque arrêt (min)   — avant : 2
+const BOARD_MAX := 12          # passagers qui montent à chaque arrêt (max)   — avant : 4
+const ALIGHT_MIN := 1         # passagers qui descendent à chaque arrêt (min) — avant : 1
+const ALIGHT_MAX := 3         # passagers qui descendent à chaque arrêt (max) — avant : 2
+const SPECIALS_MIN := 3       # personnages spéciaux par trajet (minimum)
+const QUALITY_HIGH := true    # passe à false si le PC rame
 const SPECIALS_MAX := 6       # personnages spéciaux par trajet (maximum)
+const CHATTY_IDS := ["oldman", "homme1", "homme2"]
 
 var line: Dictionary
 var rng := RandomNumberGenerator.new()
@@ -22,7 +28,7 @@ var passengers: Array[Passenger] = []
 var display: Label3D
 var doors: Array[Node3D] = []
 var ticket_ui: TicketUI
-
+ 
 var state := "depart"
 var state_t := 5.0
 var speed := 0.0
@@ -31,11 +37,13 @@ var special_stops: Array[int] = []
 var specials_pool: Array = []
 var stats := {"score": 0, "controles": 0, "justes": 0, "amendes": 0, "amendes_euros": 0,
 	"erreurs_amende": 0, "fraudes_laissees": 0, "fraudeurs_partis": 0, "passagers": 0, "speciaux": []}
-
+ 
 var _started := false
-
+ 
 # Pépé Raymond tape la discute avec son voisin
 const CHAT_INTERVAL := 3.0
+# personnages bavards : ils cherchent une place à côté d'un spécial et lancent la conversation
+const CHATTY_IDS := ["oldman", "homme1"]
 const OLDMAN_LINES := [
 	"De mon temps, le ticket coûtait 3 francs !",
 	"Vous savez, j'ai conduit cette ligne pendant 30 ans...",
@@ -45,6 +53,16 @@ const OLDMAN_LINES := [
 	"Le chauffeur, là, Gérard ? Je l'ai connu tout petit.",
 	"Vous savez pourquoi on dit « composter » ? Moi non plus.",
 ]
+## Répliques des bavards (clé = id). Sans entrée, le bavard utilise OLDMAN_LINES.
+const TALKER_LINES := {
+	"homme1": [
+		"Vous avez vu le match hier soir ?",
+		"Encore des travaux sur la ligne, c'est infernal.",
+		"Il paraît que le tram va être prolongé jusqu'au stade.",
+		"Je fais ce trajet tous les jours depuis dix ans.",
+		"Le contrôleur, là, il a l'air sévère aujourd'hui...",
+	],
+}
 const PARTNER_LINES := {
 	"pampa": ["...........!", "...♪", "(agite ses bras)"],
 	"agent": ["Intéressant. Je note.", "Hmm. Pour mon rapport.", "Continuez, monsieur."],
@@ -77,27 +95,23 @@ func _ready() -> void:
 
 ## Crée le joueur (et donc sa caméra) et le HUD s'ils ne sont pas déjà dans la scène.
 func _create_player_and_hud() -> void:
-	# joueur : réutilise celui de bus.tscn s'il existe, sinon en crée un
-	if player == null:
-		player = _find_child_of_type(self, "Player") as Player
-	if player == null:
-		player = Player.new()
-		add_child(player)
-		player.position = Vector3(0, 0, 2.0)   # debout dans l'allée, derrière la porte du milieu
-	# touche [E] -> _on_interact (le nom du signal dépend de player.gd)
-	for sig in ["interact", "interacted", "interaction", "interact_pressed", "target_interacted"]:
-		if player.has_signal(sig):
-			if not player.is_connected(sig, _on_interact):
-				player.connect(sig, _on_interact)
-			break
-
-	# HUD : réutilise celui de bus.tscn s'il existe, sinon en crée un
+	# même schéma que hall.gd : HUD d'abord, puis le joueur relié au HUD
+	Build.environment(self, Color(0.35, 0.5, 0.8), Color(0.75, 0.8, 0.9), 0.12, 0.0)
+	_setup_rendering()
 	if hud == null:
 		hud = _find_child_of_type(self, "Hud") as Hud
 	if hud == null:
 		hud = Hud.new()
 		add_child(hud)
-
+	if player == null:
+		player = _find_child_of_type(self, "Player") as Player
+	if player == null:
+		player = Player.new()
+		player.position = Vector3(0, 0.05, 2.0)   # debout dans l'allée, derrière la porte du milieu
+		player.hud = hud
+		add_child(player)
+	if not player.interacted.is_connected(_on_interact):
+		player.interacted.connect(_on_interact)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -127,7 +141,9 @@ func start() -> void:
 	world = Node3D.new()
 	add_child(world)
 	_build_bus()
+	_decorate_bus()
 	_build_city()
+	_upgrade_lights()
 
 	# personnages spéciaux, ordre aléatoire
 	specials_pool = People.specials(line)
@@ -153,55 +169,132 @@ func start() -> void:
 # ------------------------------------------------------------------ décor extérieur
 
 func _build_city() -> void:
-	# chaussée fixe (très longue) sous le bus
-	Build.box(self, Vector3(14, 0.1, 400), Vector3(0, -0.8, -100), Color(0.22, 0.22, 0.24), false)
+	var asphalt := Color(0.2, 0.2, 0.22)
+	var pavement := Color(0.62, 0.61, 0.58)
+	# chaussée, bordures, trottoirs, pelouses (fixes, très longs)
+	_rough(Build.box(self, Vector3(14, 0.1, 400), Vector3(0, -0.8, -100), asphalt, false), 0.95)
 	for side in [-1, 1]:
-		Build.box(self, Vector3(4, 0.25, 400), Vector3(side * 9, -0.65, -100), Color(0.6, 0.6, 0.6), false)
-		Build.box(self, Vector3(30, 0.1, 400), Vector3(side * 26, -0.75, -100), Color(0.35, 0.55, 0.3), false)
+		_rough(Build.box(self, Vector3(0.25, 0.3, 400), Vector3(side * 7.1, -0.65, -100), Color(0.75, 0.75, 0.72), false), 0.8)   # bordure
+		_rough(Build.box(self, Vector3(4, 0.25, 400), Vector3(side * 9, -0.65, -100), pavement, false), 0.9)                       # trottoir
+		_rough(Build.box(self, Vector3(30, 0.1, 400), Vector3(side * 26, -0.75, -100), Color(0.3, 0.5, 0.26), false), 1.0)          # pelouse
+		Build.box(self, Vector3(0.12, 0.02, 400), Vector3(side * 6.6, -0.745, -100), Color(0.92, 0.92, 0.88), false)              # ligne de rive
+
 	var z := -240.0
 	while z < WRAP_BACK:
-		# marquage central
+		# marquage central en pointillés
 		_mover(Build.box(world, Vector3(0.15, 0.02, 3), Vector3(0, -0.74, z), Color(0.95, 0.95, 0.9), false))
+		# joints du trottoir
+		for side in [-1, 1]:
+			_mover(Build.box(world, Vector3(3.9, 0.005, 0.03), Vector3(side * 9, -0.52, z), pavement.darkened(0.15), false))
 		if int(z) % 24 == 0:
 			for side in [-1, 1]:
-				var pole := Node3D.new()
-				pole.position = Vector3(side * 7.4, -0.55, z)
-				world.add_child(pole)
-				Build.cylinder(pole, 0.08, 6, Vector3(0, 3, 0), Color(0.3, 0.32, 0.35))
-				Build.box(pole, Vector3(1.2, 0.12, 0.3), Vector3(-side * 0.5, 6, 0), Color(0.3, 0.32, 0.35), false)
-				_mover(pole)
+				_mover(_street_lamp(side, z))
+		elif int(z) % 36 == 6:
+			_mover(_bench(rng.randf() < 0.5, z))
 		z += 6.0
+
 	z = -240.0
 	while z < WRAP_BACK:
 		for side in [-1, 1]:
 			var w := rng.randf_range(8, 16)
-			var h := rng.randf_range(6, 22)
-			var col := Color.from_hsv(rng.randf(), rng.randf_range(0.1, 0.35), rng.randf_range(0.55, 0.9))
-			var b := Node3D.new()
-			b.position = Vector3(side * rng.randf_range(16, 22), -0.6, z)
-			world.add_child(b)
-			Build.box(b, Vector3(10, h, w * 0.9), Vector3(0, h / 2, 0), col, false)
-			# rangées de fenêtres
-			var fy := 2.0
-			while fy < h - 1:
-				Build.box(b, Vector3(0.05, 1.0, w * 0.75), Vector3(-side * 5.02, fy, 0), Color(0.55, 0.7, 0.85), false)
-				fy += 3.0
-			_mover(b)
-			if rng.randf() < 0.5:
-				var tree := Node3D.new()
-				tree.position = Vector3(side * 10.5, -0.55, z + w / 2)
-				world.add_child(tree)
-				Build.cylinder(tree, 0.15, 2, Vector3(0, 1, 0), Color(0.4, 0.28, 0.16))
-				var leaves := MeshInstance3D.new()
-				var sm := SphereMesh.new()
-				sm.radius = 1.2
-				sm.height = 2.2
-				leaves.mesh = sm
-				leaves.material_override = Build.mat(Color(0.25, 0.55, 0.25))
-				leaves.position.y = 2.6
-				tree.add_child(leaves)
-				_mover(tree)
+			_mover(_building(side, z, w))
+			if rng.randf() < 0.55:
+				_mover(_tree(side, z + w / 2))
 		z += 16.0
+
+
+func _street_lamp(side: int, z: float) -> Node3D:
+	var pole := Node3D.new()
+	pole.position = Vector3(side * 7.6, -0.55, z)
+	world.add_child(pole)
+	var metal := Color(0.22, 0.24, 0.27)
+	_metal(Build.cylinder(pole, 0.09, 0.5, Vector3(0, 0.25, 0), metal), 0.5)        # socle
+	_metal(Build.cylinder(pole, 0.06, 6, Vector3(0, 3, 0), metal), 0.45)
+	_metal(Build.box(pole, Vector3(1.3, 0.08, 0.12), Vector3(-side * 0.6, 5.95, 0), metal, false), 0.45)
+	var head := Build.box(pole, Vector3(0.5, 0.1, 0.25), Vector3(-side * 1.15, 5.88, 0), Color(1, 0.95, 0.8), false)
+	_glow(head, Color(1, 0.93, 0.78), 1.2)
+	return pole
+
+
+func _bench(left: bool, z: float) -> Node3D:
+	var side := -1 if left else 1
+	var b := Node3D.new()
+	b.position = Vector3(side * 10.2, -0.52, z)
+	b.rotation_degrees.y = 90 * side
+	world.add_child(b)
+	var wood := Color(0.5, 0.33, 0.18)
+	for k in 3:
+		Build.box(b, Vector3(1.6, 0.04, 0.1), Vector3(0, 0.45, -0.12 + k * 0.12), wood, false)
+	Build.box(b, Vector3(1.6, 0.3, 0.04), Vector3(0, 0.7, 0.2), wood, false)
+	for x in [-0.7, 0.7]:
+		_metal(Build.box(b, Vector3(0.05, 0.45, 0.4), Vector3(x, 0.22, 0), Color(0.15, 0.15, 0.17), false), 0.5)
+	# poubelle à côté
+	_metal(Build.cylinder(b, 0.2, 0.7, Vector3(1.2, 0.35, 0), Color(0.15, 0.35, 0.2)), 0.6)
+	return b
+
+
+func _building(side: int, z: float, w: float) -> Node3D:
+	var h := rng.randf_range(6, 22)
+	var depth := 10.0
+	var col := Color.from_hsv(rng.randf_range(0.02, 0.14) if rng.randf() < 0.7 else rng.randf(),
+		rng.randf_range(0.08, 0.3), rng.randf_range(0.55, 0.88))
+	var b := Node3D.new()
+	b.position = Vector3(side * rng.randf_range(16, 22), -0.6, z)
+	world.add_child(b)
+	var face := -side * (depth / 2 + 0.02)      # façade tournée vers la rue
+	_rough(Build.box(b, Vector3(depth, h, w * 0.9), Vector3(0, h / 2, 0), col, false), 0.9)
+	# corniche de toit + rebord
+	_rough(Build.box(b, Vector3(depth + 0.4, 0.35, w * 0.9 + 0.4), Vector3(0, h + 0.17, 0), col.darkened(0.25), false), 0.85)
+	# rez-de-chaussée : vitrine de magasin + auvent
+	var shop := rng.randf() < 0.6
+	if shop:
+		_rough(Build.box(b, Vector3(0.1, 2.6, w * 0.9), Vector3(face, 1.3, 0), col.darkened(0.4), false), 0.8)
+		var vitrine := Build.box(b, Vector3(0.05, 1.8, w * 0.7), Vector3(face * 1.004, 1.2, 0), Color(0.85, 0.8, 0.6), false)
+		_glow(vitrine, Color(1, 0.9, 0.7), 0.35)
+		var awn := Color.from_hsv(rng.randf(), 0.6, 0.7)
+		var a := Build.box(b, Vector3(1.4, 0.08, w * 0.75), Vector3(face * 1.0 + -side * 0.7, 2.8, 0), awn, false)
+		a.rotation_degrees.z = 12 * side
+	# étages : fenêtres avec cadre, certaines éclairées
+	var fy := 3.4 if shop else 2.0
+	var n_cols := maxi(int(w * 0.9 / 2.2), 1)
+	var span := w * 0.9
+	while fy < h - 1.2:
+		for c in n_cols:
+			var wz := -span / 2 + (c + 0.5) * span / n_cols
+			Build.box(b, Vector3(0.06, 1.25, 1.05), Vector3(face * 1.002, fy, wz), Color(0.92, 0.9, 0.86), false)   # cadre
+			var glass := Build.box(b, Vector3(0.06, 1.1, 0.9), Vector3(face * 1.006, fy, wz), Color(0.45, 0.58, 0.72), false)
+			if rng.randf() < 0.18:
+				_glow(glass, Color(1, 0.85, 0.6), 0.5)
+			else:
+				_metal(glass, 0.08, Color(0.45, 0.58, 0.72), 0.3)
+			# rebord de fenêtre (qualité haute seulement : beaucoup d'objets)
+			if QUALITY_HIGH:
+				Build.box(b, Vector3(0.18, 0.06, 1.1), Vector3(face * 1.01, fy - 0.62, wz), Color(0.85, 0.83, 0.8), false)
+		fy += 3.0
+	return b
+
+
+func _tree(side: int, z: float) -> Node3D:
+	var tree := Node3D.new()
+	tree.position = Vector3(side * 10.5, -0.55, z)
+	world.add_child(tree)
+	_rough(Build.cylinder(tree, 0.15, 2.2, Vector3(0, 1.1, 0), Color(0.36, 0.25, 0.15)), 1.0)
+	# grille au pied
+	_metal(Build.box(tree, Vector3(1.0, 0.03, 1.0), Vector3(0, 0.03, 0), Color(0.2, 0.2, 0.22), false), 0.6)
+	var green := Color(0.22 + rng.randf() * 0.08, 0.48 + rng.randf() * 0.1, 0.22)
+	for k in 4:
+		var leaves := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = rng.randf_range(0.8, 1.15)
+		sm.height = sm.radius * 1.8
+		leaves.mesh = sm
+		var mat := Build.mat(green.darkened(k * 0.06))
+		if mat is StandardMaterial3D:
+			mat.roughness = 1.0
+		leaves.material_override = mat
+		leaves.position = Vector3(rng.randf_range(-0.5, 0.5), 2.6 + rng.randf_range(-0.2, 0.7), rng.randf_range(-0.5, 0.5))
+		tree.add_child(leaves)
+	return tree
 
 
 func _mover(n: Node3D) -> void:
@@ -266,9 +359,9 @@ func _build_bus() -> void:
 			Build.box(self, Vector3(0.06, 0.45, 0.06), Vector3(sx, 0.2, sz), Color(0.3, 0.3, 0.3), false)
 			seats.append({"pos": Vector3(sx, 0, sz - 0.02), "p": null, "standing": false})
 		sz += 1.0
-	# places debout dans l'allée (utilisées seulement quand toutes les places assises sont prises)
-	for az in [-2.5, -1.5, 1.0, 2.0, 3.0, 4.5]:
-		seats.append({"pos": Vector3(0, 0, az), "p": null, "standing": true})
+	# places debout au fond du bus (utilisées seulement quand toutes les places assises sont prises)
+	for spot in [Vector2(0, 4.95), Vector2(-0.4, 5.2), Vector2(0.4, 5.2), Vector2(0, 5.6), Vector2(-0.6, 5.65), Vector2(0.6, 5.65)]:
+		seats.append({"pos": Vector3(spot.x, 0, spot.y), "p": null, "standing": true})
 	# chauffeur
 	var drv_data := {"id": "driver", "special": false, "name": "Gérard (chauffeur)", "body": Color(0.2, 0.3, 0.5),
 		"legs": Color(0.15, 0.15, 0.2), "skin": Color(0.9, 0.72, 0.6), "hair": Color(0.4, 0.4, 0.4), "greet": ""}
@@ -289,6 +382,145 @@ func _build_bus() -> void:
 
 
 ## Place libre au hasard : d'abord assise ; debout seulement si allow_standing et plus de place assise.
+# ------------------------------------------------------------------ finitions « HD » du bus
+
+func _decorate_bus() -> void:
+	var L := 12.0; var W := 2.5; var H := 2.45
+	var steel := Color(0.8, 0.82, 0.85)
+	# barres de maintien horizontales sous le plafond
+	for x in [-0.55, 0.55]:
+		var rail := Build.cylinder(self, 0.02, 9.5, Vector3(x, H - 0.25, 0.4), steel)
+		rail.rotation_degrees.x = 90
+		_metal(rail, 0.25)
+	# boutons « arrêt demandé » rouges sur les barres verticales
+	for bz in [-3.0, -1.0, 1.5, 3.5]:
+		for bx in [-0.32, 0.32]:
+			var btn := Build.box(self, Vector3(0.07, 0.1, 0.07), Vector3(bx, 1.25, bz), Color(0.85, 0.1, 0.1), false)
+			_glow(btn, Color(1, 0.15, 0.1), 0.6)
+	# bandeaux LED au plafond
+	for x in [-0.75, 0.75]:
+		var led := Build.box(self, Vector3(0.12, 0.02, L - 1.5), Vector3(x, H - 0.01, 0.3), Color(1, 1, 0.97), false)
+		_glow(led, Color(0.95, 0.97, 1), 1.6)
+	# panneaux publicitaires au-dessus des vitres
+	var ads := [Color(0.9, 0.35, 0.3), Color(0.25, 0.55, 0.85), Color(0.95, 0.75, 0.2), Color(0.35, 0.7, 0.4)]
+	var i := 0
+	for side in [-1, 1]:
+		for az in [-3.0, -0.5, 2.5, 4.5]:
+			if side > 0 and abs(az - DOOR_Z) < 1.0:
+				continue
+			var ad := Build.box(self, Vector3(0.02, 0.3, 0.9), Vector3(side * (W / 2 - 0.07), H - 0.24, az), ads[i % ads.size()], false)
+			_glow(ad, ads[i % ads.size()], 0.25)
+			i += 1
+	# bandes jaunes de sécurité au sol devant les portes
+	for dz in [-4.9, DOOR_Z]:
+		Build.box(self, Vector3(0.8, 0.012, 1.3), Vector3(W / 2 - 0.45, 0.006, dz), Color(0.95, 0.8, 0.1), false)
+	# revêtement de sol : petites pastilles antidérapantes
+	_rough(Build.box(self, Vector3(W - 0.2, 0.008, L - 0.4), Vector3(0, 0.004, 0), Color(0.3, 0.31, 0.34), false), 1.0)
+	# vitre arrière
+	var rear := Build.box(self, Vector3(W - 0.4, 0.8, 0.04), Vector3(0, 1.6, L / 2 - 0.06), Color(0.7, 0.85, 0.95, 0.2), false)
+	_metal(rear, 0.05, Color(0.7, 0.85, 0.95), 0.2)
+	# tableau de bord lumineux
+	var dash := Build.box(self, Vector3(0.6, 0.25, 0.02), Vector3(-0.75, 0.95, -5.82), Color(0.1, 0.3, 0.5), false)
+	_glow(dash, Color(0.3, 0.7, 1.0), 0.8)
+
+
+func _setup_rendering() -> void:
+	var vp := get_viewport()
+	vp.msaa_3d = Viewport.MSAA_4X if QUALITY_HIGH else Viewport.MSAA_2X
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+	vp.use_debanding = true
+	var we: WorldEnvironment = null
+	for c in find_children("*", "WorldEnvironment", true, false):
+		we = c
+		break
+	if we and we.environment:
+		var env := we.environment
+		env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+		env.tonemap_white = 6.0
+		env.ssao_enabled = true
+		env.ssao_radius = 0.7
+		env.ssao_intensity = 1.4
+		env.ssil_enabled = QUALITY_HIGH
+		env.ssil_intensity = 0.6
+		env.glow_enabled = true
+		env.glow_intensity = 0.45
+		env.glow_hdr_threshold = 1.1
+		env.fog_enabled = true                      # brume de distance : la ville se fond au loin
+		env.fog_light_color = Color(0.72, 0.78, 0.88)
+		env.fog_density = 0.006
+		env.fog_aerial_perspective = 0.4
+		env.adjustment_enabled = true
+		env.adjustment_contrast = 1.05
+		env.adjustment_saturation = 1.1
+	# soleil avec ombres (les bâtiments et lampadaires projettent leur ombre dans le bus)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-48, -35, 0)
+	sun.light_color = Color(1, 0.95, 0.85)
+	sun.light_energy = 1.1
+	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 60.0 if QUALITY_HIGH else 30.0
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if QUALITY_HIGH else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	add_child(sun)
+
+
+func _upgrade_lights() -> void:
+	for l in find_children("*", "OmniLight3D", true, false):
+		var o := l as OmniLight3D
+		o.shadow_enabled = QUALITY_HIGH
+		o.shadow_bias = 0.03
+		o.light_specular = 0.5
+
+
+## Build.box / Build.cylinder peuvent renvoyer le mesh ou un corps qui le contient.
+func _mesh_of(n: Node) -> MeshInstance3D:
+	if n is MeshInstance3D:
+		return n
+	var found := n.find_children("*", "MeshInstance3D", true, false)
+	return found[0] if found.size() > 0 else null
+
+
+func _own_mat(n: Node) -> StandardMaterial3D:
+	var m := _mesh_of(n)
+	if m == null:
+		return null
+	var mat: StandardMaterial3D
+	if m.material_override is StandardMaterial3D:
+		mat = m.material_override.duplicate()
+	else:
+		mat = StandardMaterial3D.new()
+	m.material_override = mat
+	return mat
+
+
+func _rough(n: Node, r: float) -> Node:
+	var mat := _own_mat(n)
+	if mat:
+		mat.roughness = r
+	return n
+
+
+func _metal(n: Node, rough: float, col = null, metallic := 1.0) -> Node:
+	var mat := _own_mat(n)
+	if mat:
+		if col != null:
+			mat.albedo_color = col
+		mat.metallic = metallic
+		mat.roughness = rough
+	return n
+
+
+func _glow(n: Node, col: Color, energy: float) -> Node:
+	var mat := _own_mat(n)
+	if mat:
+		mat.emission_enabled = true
+		mat.emission = col
+		mat.emission_energy_multiplier = energy
+	var m := _mesh_of(n)
+	if m:
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return n
+
+
 func _free_seat(allow_standing := false) -> int:
 	var free := []
 	var free_standing := []
@@ -439,16 +671,18 @@ func _arrive_at_stop() -> void:
 	# descentes
 	var seated := passengers.filter(func(p): return not p.data.get("special", false))
 	seated.shuffle()
-	for i in min(rng.randi_range(1, 2), seated.size()):
+	for i in min(rng.randi_range(ALIGHT_MIN, ALIGHT_MAX), seated.size()):
 		_alight(seated[i])
 	# montées : les spéciaux prévus ici passent en premier
 	var n_special := special_stops.count(stop_index)
-	var n := maxi(rng.randi_range(2, 4), n_special)
+	var n := maxi(rng.randi_range(BOARD_MIN, BOARD_MAX), n_special)
+	# tout le monde doit être monté avant la fermeture des portes
+	var gap: float = clampf((stop_wait(stop_index) - 1.5) / maxf(n, 1), 0.45, 1.2)
 	for i in n:
 		var is_special: bool = i < n_special and specials_pool.size() > 0
 		# les spéciaux peuvent rester debout ; les passagers ordinaires ne montent que s'il reste une place assise
 		var seat := -1
-		if is_special and str(specials_pool.back().get("id", "")) == "oldman":
+		if is_special and str(specials_pool.back().get("id", "")) in CHATTY_IDS:
 			seat = _seat_next_to_special()      # Pépé va s'asseoir à côté d'un spécial s'il y a de la place
 		if seat < 0:
 			seat = _free_seat(is_special)
@@ -460,7 +694,7 @@ func _arrive_at_stop() -> void:
 			hud.show_toast("Arrêt : %s — %s monte dans le bus ★" % [name_, d.get("name", "?")], Color(1, 0.8, 1), 4.0)
 		else:
 			d = People.random_passenger(line, rng)
-		var delay := 1.0 + i * 1.2
+		var delay := 0.8 + i * gap
 		get_tree().create_timer(delay).timeout.connect(_spawn.bind(d, seat, false))
 		seats[seat].p = "réservé"   # remplacé au spawn
 	_goto("stop", stop_wait(stop_index))
@@ -562,7 +796,7 @@ func _can_chat_with(p) -> bool:
 		return false
 	if not p.data.get("special", false) or p.data.get("child", false):
 		return false
-	return not str(p.data.get("id", "")) in ["oldman", "driver", "tiph_enfant"]
+	return not str(p.data.get("id", "")) in ["oldman", "driver"]
 
 
 func _are_neighbors(a: int, b: int) -> bool:
@@ -571,7 +805,8 @@ func _are_neighbors(a: int, b: int) -> bool:
 	var sa: Dictionary = seats[a]
 	var sb: Dictionary = seats[b]
 	if sa.get("standing", false) or sb.get("standing", false):
-		return false
+		# l'un des deux est debout au fond : voisins s'ils sont tout proches
+		return sa.pos.distance_to(sb.pos) < 1.0
 	return absf(sa.pos.z - sb.pos.z) < 0.05 and signf(sa.pos.x) == signf(sb.pos.x)
 
 
