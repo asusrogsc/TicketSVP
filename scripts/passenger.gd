@@ -9,6 +9,8 @@ var seat_index := -1
 var mark: Label3D
 var name_tag: Label3D
 var visual: Node3D
+var ordinary_visual: Node3D
+var ordinary_seated := true
 var base_y := 0.0           # remonte les petits gabarits pour qu'ils restent sur le siège
 var fit: ModelFit          # modèle .glb (s'il existe dans res://models/)
 
@@ -45,6 +47,9 @@ func _ready() -> void:
 
 ## Silhouette assise : jambes, buste, tête, cheveux (+ détails des personnages spéciaux)
 func _build_figure() -> void:
+	if not data.get("special", false) and str(data.get("id", "")) != "driver":
+		ordinary_visual = preload("res://scripts/ordinary_visual.gd").build(visual, data)
+		return
 	var s: float = data.get("scale", 0.9 if data.get("small", false) else 1.0)
 	base_y = 0.5 * (1.0 - s)
 	if data.get("cactus", false):
@@ -113,6 +118,14 @@ func _build_figure() -> void:
 
 
 func set_seated(seated: bool) -> void:
+	if ordinary_visual != null:
+		if ordinary_seated != seated:
+			preload("res://scripts/ordinary_visual.gd").set_pose(ordinary_visual, seated)
+			ordinary_seated = seated
+		visual.position.y = 0.0
+		mark.position.y = 1.75 if seated else 2.05
+		name_tag.position.y = 1.62 if seated else 1.92
+		return
 	# debout : on relève la silhouette pour que les jambes ne flottent pas
 	if fit:
 		fit.set_seated(seated)
