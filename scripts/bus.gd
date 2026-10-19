@@ -30,32 +30,100 @@ var specials_pool: Array = []
 var stats := {"score": 0, "controles": 0, "justes": 0, "amendes": 0, "amendes_euros": 0,
 	"erreurs_amende": 0, "fraudes_laissees": 0, "fraudeurs_partis": 0, "passagers": 0, "speciaux": []}
 
+var _started := false
+
+
+# ------------------------------------------------------------------ démarrage
 
 func _ready() -> void:
+	set_process(false)
 	rng.randomize()
-	line = Game.current_line if not Game.current_line.is_empty() else Game.lines[0]
-	Build.environment(self, Color(0.3, 0.55, 0.9), Color(0.8, 0.86, 0.95), 0.5, 0.85)
+
+	# la ligne choisie dans le hall (Game.start_line) ; ligne 1 si on lance bus.tscn directement (F6)
+	line = Game.current_line
+	if line.is_empty() or line.get("stops", []).is_empty():
+		line = Game.lines[0]
+
+	_create_player_and_hud()
+	start()
+
+
+## Crée le joueur (et donc sa caméra) et le HUD s'ils ne sont pas déjà dans la scène.
+func _create_player_and_hud() -> void:
+	# joueur : réutilise celui de bus.tscn s'il existe, sinon en crée un
+	if player == null:
+		player = _find_child_of_type(self, "Player") as Player
+	if player == null:
+		player = Player.new()
+		add_child(player)
+		player.position = Vector3(0, 0, 2.0)   # debout dans l'allée, derrière la porte du milieu
+	# touche [E] -> _on_interact (le nom du signal dépend de player.gd)
+	for sig in ["interact", "interacted", "interaction", "interact_pressed", "target_interacted"]:
+		if player.has_signal(sig):
+			if not player.is_connected(sig, _on_interact):
+				player.connect(sig, _on_interact)
+			break
+
+	# HUD : réutilise celui de bus.tscn s'il existe, sinon en crée un
+	if hud == null:
+		hud = _find_child_of_type(self, "Hud") as Hud
+	if hud == null:
+		hud = Hud.new()
+		add_child(hud)
+
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _find_child_of_type(root: Node, type_name: String) -> Node:
+	for c in root.get_children():
+		var scr = c.get_script()
+		if scr and scr.get_global_name() == type_name:
+			return c
+		var found := _find_child_of_type(c, type_name)
+		if found:
+			return found
+	return null
+
+
+func start() -> void:
+	if _started:
+		return
+	if line.is_empty() or not line.has("stops"):
+		push_error("bus.gd : 'line' est vide ou sans 'stops'.")
+		return
+	if hud == null:
+		push_error("bus.gd : 'hud' est vide.")
+		return
+	_started = true
+
+	# construction
 	world = Node3D.new()
 	add_child(world)
-	_build_city()
 	_build_bus()
-	hud = Hud.new()
-	add_child(hud)
-	player = Player.new()
-	player.position = Vector3(0, 0.05, -3.6)
-	player.hud = hud
-	add_child(player)
-	player.interacted.connect(_on_interact)
+	_build_city()
+
+	# personnages spéciaux, ordre aléatoire
+	specials_pool = People.specials(line)
+	specials_pool.shuffle()
+
+	# un ou deux personnages spéciaux par trajet, à des arrêts différents
+	special_stops.clear()
+	if line.stops.size() > 2:
+		var count: int = 2 if rng.randf() < 0.5 else 1
+		var tries := 0
+		while special_stops.size() < count and tries < 20:
+			var s := rng.randi_range(1, line.stops.size() - 2)
+			if not special_stops.has(s):
+				special_stops.append(s)
+			tries += 1
+
 	# passagers du départ
 	for i in 7:
 		_spawn(People.random_passenger(line, rng), _free_seat(), true)
-	specials_pool = People.specials(line)
-	specials_pool.shuffle()
-	# un ou deux personnages spéciaux par trajet, à des arrêts différents
-	for k in (2 if rng.randf() < 0.5 else 1):
-		special_stops.append(rng.randi_range(1, line.stops.size() - 2))
+
 	state_t = stop_wait(0) if line.stops[0] is Dictionary and line.stops[0].has("arret") else 5.0
 	hud.show_toast("%s %s — Départ de %s. Contrôle les titres avec [E] !" % [line.type, line.name, stop_name(0)], Color(0.8, 0.95, 1), 5.0)
+	set_process(true)
 
 
 # ------------------------------------------------------------------ décor extérieur
@@ -116,7 +184,7 @@ func _mover(n: Node3D) -> void:
 	movers.append(n)
 
 
-func _spawn_shelter(at_z: float, stop_name: String) -> void:
+func _spawn_shelter(at_z: float, label_text: String) -> void:
 	var s := Node3D.new()
 	s.set_meta("once", true)
 	s.position = Vector3(5.2, -0.55, at_z)
@@ -125,8 +193,8 @@ func _spawn_shelter(at_z: float, stop_name: String) -> void:
 	Build.box(s, Vector3(0.05, 2.4, 4), Vector3(1.1, 1.2, 0), Color(0.7, 0.85, 0.95, 0.4), false)
 	Build.box(s, Vector3(0.5, 0.08, 2.5), Vector3(0.8, 0.5, 0), Color(0.4, 0.4, 0.45), false)
 	Build.cylinder(s, 0.05, 2.8, Vector3(-0.2, 1.4, 2.2), Color(0.3, 0.3, 0.3))
-	var sign := Build.label3d(s, "■ " + stop_name, Vector3(-0.2, 2.9, 2.2), 64, Color.WHITE)
-	sign.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	var sign_label := Build.label3d(s, "■ " + label_text, Vector3(-0.2, 2.9, 2.2), 64, Color.WHITE)
+	sign_label.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
 	_mover(s)
 
 
@@ -137,7 +205,7 @@ func _build_bus() -> void:
 	var body: Color = line.color
 	Build.box(self, Vector3(W, 0.2, L), Vector3(0, -0.1, 0), Color(0.35, 0.36, 0.38))          # plancher
 	Build.box(self, Vector3(W, 0.1, L), Vector3(0, H + 0.05, 0), Color(0.88, 0.88, 0.86))     # plafond
-	Build.box(self, Vector3(W, H, 0.1), Vector3(0, H / 2, L / 2), Color(0.72, 0.74, 0.77))                        # arrière
+	Build.box(self, Vector3(W, H, 0.1), Vector3(0, H / 2, L / 2), Color(0.72, 0.74, 0.77))    # arrière
 	# avant : pare-brise + tableau de bord
 	Build.box(self, Vector3(W, 0.9, 0.3), Vector3(0, 0.45, -L / 2), Color(0.15, 0.15, 0.17))
 	Build.box(self, Vector3(W, H - 0.9, 0.05), Vector3(0, 0.9 + (H - 0.9) / 2, -L / 2 - 0.1), Color(0.7, 0.85, 0.95, 0.15), true, 0.05)
@@ -147,10 +215,10 @@ func _build_bus() -> void:
 		Build.box(self, Vector3(0.1, 0.95, L), Vector3(x, 0.475, 0), Color(0.72, 0.74, 0.77))
 		Build.box(self, Vector3(0.1, 0.45, L), Vector3(x, H - 0.225, 0), body.darkened(0.35))
 		Build.box(self, Vector3(0.04, 1.05, L), Vector3(x, 1.475, 0), Color(0.75, 0.88, 0.97, 0.18), true, 0.05)
-		var z := -L / 2 + 0.75
-		while z < L / 2:
-			Build.box(self, Vector3(0.12, 1.05, 0.1), Vector3(x, 1.475, z), Color(0.3, 0.32, 0.36), false)
-			z += 1.5
+		var pz := -L / 2 + 0.75
+		while pz < L / 2:
+			Build.box(self, Vector3(0.12, 1.05, 0.1), Vector3(x, 1.475, pz), Color(0.3, 0.32, 0.36), false)
+			pz += 1.5
 	# portes (côté droit) : panneaux vitrés qui glissent
 	for dz in [-4.9, DOOR_Z]:
 		for k in [-1, 1]:
@@ -160,20 +228,20 @@ func _build_bus() -> void:
 			doors.append(d)
 		Build.box(self, Vector3(0.25, 1.1, 0.2), Vector3(W / 2 - 0.35, 0.55, dz - 0.85), Color(0.95, 0.75, 0.1), false)  # composteur
 	# barres de maintien
-	for z in [-3.0, -1.0, 1.5, 3.5]:
-		for x in [-0.32, 0.32]:
-			Build.cylinder(self, 0.025, H, Vector3(x, H / 2, z), Color(0.95, 0.8, 0.1))
+	for bz in [-3.0, -1.0, 1.5, 3.5]:
+		for bx in [-0.32, 0.32]:
+			Build.cylinder(self, 0.025, H, Vector3(bx, H / 2, bz), Color(0.95, 0.8, 0.1))
 	# sièges : 2 de chaque côté, sauf zones des portes
-	var z := -3.6
-	while z < 5.4:
-		for x in [-1.0, -0.57, 0.57, 1.0]:
-			if x > 0 and abs(z - DOOR_Z) < 0.9:
+	var sz := -3.6
+	while sz < 5.4:
+		for sx in [-1.0, -0.57, 0.57, 1.0]:
+			if sx > 0 and abs(sz - DOOR_Z) < 0.9:
 				continue
-			Build.box(self, Vector3(0.44, 0.08, 0.45), Vector3(x, 0.45, z), Color(0.15, 0.25, 0.55))
-			Build.box(self, Vector3(0.44, 0.55, 0.08), Vector3(x, 0.75, z + 0.24), Color(0.15, 0.25, 0.55))
-			Build.box(self, Vector3(0.06, 0.45, 0.06), Vector3(x, 0.2, z), Color(0.3, 0.3, 0.3), false)
-			seats.append({"pos": Vector3(x, 0, z - 0.02), "p": null})
-		z += 1.0
+			Build.box(self, Vector3(0.44, 0.08, 0.45), Vector3(sx, 0.45, sz), Color(0.15, 0.25, 0.55))
+			Build.box(self, Vector3(0.44, 0.55, 0.08), Vector3(sx, 0.75, sz + 0.24), Color(0.15, 0.25, 0.55))
+			Build.box(self, Vector3(0.06, 0.45, 0.06), Vector3(sx, 0.2, sz), Color(0.3, 0.3, 0.3), false)
+			seats.append({"pos": Vector3(sx, 0, sz - 0.02), "p": null})
+		sz += 1.0
 	# chauffeur
 	var drv_data := {"id": "driver", "special": false, "name": "Gérard (chauffeur)", "body": Color(0.2, 0.3, 0.5),
 		"legs": Color(0.15, 0.15, 0.2), "skin": Color(0.9, 0.72, 0.6), "hair": Color(0.4, 0.4, 0.4), "greet": ""}
@@ -211,8 +279,8 @@ func _spawn(data: Dictionary, seat: int, seated_now: bool) -> Passenger:
 	add_child(p)
 	passengers.append(p)
 	stats.passagers += 1
-	if data.special:
-		stats.speciaux.append(data.name)
+	if data.get("special", false):
+		stats.speciaux.append(data.get("name", "?"))
 	if seated_now:
 		p.position = seats[seat].pos
 	else:
@@ -233,7 +301,7 @@ func _spawn(data: Dictionary, seat: int, seated_now: bool) -> Passenger:
 func _alight(p: Passenger) -> void:
 	seats[p.seat_index].p = null
 	passengers.erase(p)
-	if not p.controlled and p.data.truth == "fraude":
+	if not p.controlled and p.data.get("truth", "") == "fraude":
 		stats.fraudeurs_partis += 1
 		stats.score -= 5
 	p.set_seated(false)
@@ -279,7 +347,7 @@ func _process(delta: float) -> void:
 				_goto("accel", BRAKE_TIME)
 		"terminus":
 			speed = 0.0
-			if state_t <= 0 and state != "fin":
+			if state_t <= 0:
 				state = "fin"
 				_finish()
 	# défilement du décor
@@ -328,7 +396,7 @@ func _arrive_at_stop() -> void:
 		_goto("terminus", 4.0)
 		return
 	# descentes
-	var seated := passengers.filter(func(p): return not p.data.special)
+	var seated := passengers.filter(func(p): return not p.data.get("special", false))
 	seated.shuffle()
 	for i in min(rng.randi_range(1, 2), seated.size()):
 		_alight(seated[i])
@@ -338,7 +406,7 @@ func _arrive_at_stop() -> void:
 		var d: Dictionary = People.random_passenger(line, rng)
 		if i < special_stops.count(stop_index) and specials_pool.size() > 0:
 			d = specials_pool.pop_back()
-			hud.show_toast("Arrêt : %s — %s monte dans le bus ★" % [name_, d.name], Color(1, 0.8, 1), 4.0)
+			hud.show_toast("Arrêt : %s — %s monte dans le bus ★" % [name_, d.get("name", "?")], Color(1, 0.8, 1), 4.0)
 		var seat := _free_seat()
 		if seat >= 0:
 			var delay := 1.0 + i * 1.2
@@ -379,7 +447,7 @@ func _on_interact(t: Node) -> void:
 		hud.show_toast("Gérard : « Bonne tournée chef ! Fais gaffe aux resquilleurs. »", Color(0.85, 0.9, 1))
 		return
 	if p.controlled:
-		hud.show_toast(p.data.name + " a déjà été contrôlé.", Color(0.8, 0.8, 0.8), 1.5)
+		hud.show_toast(p.data.get("name", "?") + " a déjà été contrôlé.", Color(0.8, 0.8, 0.8), 1.5)
 		return
 	open_ticket(p)
 
@@ -388,7 +456,8 @@ func open_ticket(p: Passenger) -> void:
 	ticket_ui = TicketUI.new()
 	add_child(ticket_ui)
 	ticket_ui.open(p, line)
-	player.frozen = true
+	if player:
+		player.frozen = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	ticket_ui.decided.connect(_on_decided)
 	ticket_ui.closed.connect(_on_ticket_closed)
@@ -396,12 +465,13 @@ func open_ticket(p: Passenger) -> void:
 
 func _on_ticket_closed() -> void:
 	ticket_ui = null
-	player.frozen = false
+	if player:
+		player.frozen = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func _on_decided(p: Passenger, dec: String) -> void:
-	var fraud: bool = p.data.truth == "fraude"
+	var fraud: bool = p.data.get("truth", "") == "fraude"
 	var correct := (dec == "amende") == fraud
 	stats.controles += 1
 	if correct:
@@ -414,8 +484,9 @@ func _on_decided(p: Passenger, dec: String) -> void:
 			hud.show_toast("Amende justifiée : %s (+10)" % p.data.get("reason", "fraude"), Color(0.5, 1, 0.5))
 		else:
 			stats.erreurs_amende += 1
-			stats.score -= 25 if p.data.get("id", "") == "agent" else 15
-			hud.show_toast("Erreur : son titre était valide ! (-15)", Color(1, 0.45, 0.4))
+			var malus := 25 if p.data.get("id", "") == "agent" else 15
+			stats.score -= malus
+			hud.show_toast("Erreur : son titre était valide ! (-%d)" % malus, Color(1, 0.45, 0.4))
 	else:
 		if fraud:
 			stats.fraudes_laissees += 1
@@ -428,5 +499,6 @@ func _on_decided(p: Passenger, dec: String) -> void:
 
 
 func _finish() -> void:
+	set_process(false)
 	stats.line = "%s %s : %s → %s" % [line.type, line.name, line.from, line.to]
 	Game.finish_trip(stats)

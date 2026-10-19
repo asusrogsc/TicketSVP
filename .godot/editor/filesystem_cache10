@@ -1,7 +1,7 @@
 78098b89c88a74ebe8c20117b8754620
-::res://::1792439670
+::res://::1792442291
 LISEZ-MOI.txt::TextFile::-1::1792428532::0::1::::<><><>0<>0<><>::
-::res://models/::1792439675
+::res://models/::1792439692
 LISEZ-MOI.txt::TextFile::-1::1792434853::0::1::::<><><>0<>0<><>::
 marie_rose.glb::PackedScene::3523371572651810355::1792424916::1792432529::1::::<><><>0<>0<>52c866e30f5aecab81beb89dc290a529<>res://.godot/imported/marie_rose.glb-01c111a21596c120d23e66937a00c5fa.scn::uid://dj4ksl08ig15d::::res://models/marie_rose_0.png<>uid://yydymg32bpln::::res://models/marie_rose_1.jpg<>uid://bby0jp71r4ntg::::res://models/marie_rose_2.png<>uid://bkp0rlsrfxkfb::::res://models/marie_rose_3.png<>uid://dw0jfwtphf6tc::::res://models/marie_rose_4.png<>uid://baweb201th7gt::::res://models/marie_rose_5.png<>uid://v1a6jscxe7ew::::res://models/marie_rose_6.png<>uid://pr4vtplxccu1::::res://models/marie_rose_7.png<>uid://xmjf41shhpa0::::res://models/marie_rose_8.jpg<>uid://tvlw5ju5tko1::::res://models/marie_rose_9.jpg<>uid://d2tcxbxri7jnp::::res://models/marie_rose_10.png<>uid://b7yvs0q1bqv4c::::res://models/marie_rose_11.png<>uid://ngcrbgc713tv::::res://models/marie_rose_13.png<>uid://tcelru30xbs8::::res://models/marie_rose_14.png<>uid://ybx1owgl77ru::::res://models/marie_rose_15.png<>uid://bgjuady6eswxd::::res://models/marie_rose_16.png
 marie_rose_0.png::CompressedTexture2D::7851468530794569463::1792432524::1792432572::1::::<><><>0<>0<>89ff710fa307faeb8121816182522b6a<>res://.godot/imported/marie_rose_0.png-698c6f2c48e9b7f1dd473a8f08b07352.s3tc.ctex::
@@ -65,14 +65,14 @@ hall.tscn::PackedScene::-1::1792427410::0::1::::<><><>0<>0<><>::res://scripts/ha
 autotest.gd::GDScript::8381581898120803958::1792428098::0::1::::<>Node<><>0<>0<><>::
 bilan.gd::GDScript::7592111177285210499::1792427407::0::1::::<>Control<><>0<>0<><>::
 build.gd::GDScript::6987842099350260980::1792428085::0::1::::Build<>RefCounted<><>0<>0<><>::
-bus.gd::GDScript::8160899970462878831::1792436111::0::1::::<>Node3D<><>0<>0<><>::
+bus.gd::GDScript::8160899970462878831::1792442272::0::1::::<>Node3D<><>0<>0<><>::
 game.gd::GDScript::5680230062248184374::1792438873::0::1::::<>Node<><>0<>0<><>::
 hall.gd::GDScript::6665145572060882136::1792428328::0::1::::<>Node3D<><>0<>0<><>::
 hud.gd::GDScript::2392795391232285535::1792428085::0::1::::Hud<>CanvasLayer<><>0<>0<><>::
 interactable.gd::GDScript::7723161679432427752::1792427161::0::1::::Interactable<>StaticBody3D<><>0<>0<><>::
 model_fit.gd::GDScript::8021398657732735799::1792434572::0::1::::ModelFit<>RefCounted<><>0<>0<><>::
 passenger.gd::GDScript::4290177380092166549::1792434644::0::1::::Passenger<>StaticBody3D<><>0<>0<><>::
-people.gd::GDScript::3133333984354874882::1792433472::0::1::::People<>RefCounted<><>0<>0<><>::
+people.gd::GDScript::3133333984354874882::1792441964::0::1::::People<>RefCounted<><>0<>0<><>::
 player.gd::GDScript::1811386043799532974::1792430754::0::1::::Player<>CharacterBody3D<><>0<>0<><>::
 ticket_ui.gd::GDScript::6632871385774314162::1792427288::0::1::::TicketUI<>CanvasLayer<><>0<>0<><>::
 ::res://tests/::1792434644
