@@ -1,0 +1,11 @@
+Dépose ici des modèles .glb pour les personnages spéciaux (le nom du fichier compte) :
+  marie_rose.glb, tiph.glb, tiph_enfant.glb, tiph_chinese.glb,
+  pampa.glb, mamie.glb, touriste.glb, agent.glb
+
+Le jeu s'occupe du reste tout seul :
+ - taille : mise à l'échelle automatique (réglable avec "model_height" dans scripts/people.gd) ;
+ - orientation : le modèle doit regarder vers l'avant comme sur Sketchfab (+Z), le jeu le retourne ;
+ - position assise :
+     * modèle avec squelette (os type FF7 Remake, Mixamo...) : le jeu plie les jambes et baisse les bras ;
+     * modèle sans squelette : le jeu déforme le maillage (hanches, genoux, bras en T/A baissés).
+Si un fichier est absent, le personnage garde sa silhouette simple.

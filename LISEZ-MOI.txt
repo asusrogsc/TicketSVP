@@ -1,0 +1,17 @@
+Ticket, s'il vous plait ! — prototype (Godot 4.7)
+
+Ouvrir : Godot > Importer > choisir le fichier project.godot de ce dossier > Importer et éditer, puis F5 pour jouer.
+
+Commandes
+  Souris        regarder
+  Z Q S D       se déplacer (touches physiques : marche aussi en QWERTY)
+  Maj           courir        Espace  sauter
+  E             interagir (planning, passagers, chauffeur)
+  1 / V         titre valide  2 / F   amende 50 €     Échap  fermer
+  Clic          reprendre la souris
+
+Score : amende justifiée +10 (+50 €), titre valide accepté +5, amende injuste -15,
+fraudeur laissé passer -10, fraudeur descendu sans contrôle -5.
+
+Personnages spéciaux : déposer un modèle .glb dans models/ (voir models/LISEZ-MOI.txt).
+Modèle 3D « Save Point » et autres : à ajouter plus tard.
