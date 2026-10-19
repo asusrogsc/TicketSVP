@@ -105,3 +105,19 @@ func _load() -> void:
 		if data is Dictionary:
 			for k in data:
 				career[k] = data[k]
+				
+# À ajouter dans game.gd
+var nsfw_unlocked := false          # ou débloqué en carrière
+var nsfw_settings := {
+	"enabled": true,
+	"explicit_level": 1,            # 0 off, 1 suggestif, 2 explicite
+}
+
+func start_nsfw(scene_path: String, return_to: String = "res://scenes/bus.tscn") -> void:
+	last_result["nsfw_return"] = return_to
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE  # ou capturé selon la scène
+	get_tree().change_scene_to_file(scene_path)
+
+func end_nsfw() -> void:
+	var path: String = last_result.get("nsfw_return", "res://scenes/hall.tscn")
+	get_tree().change_scene_to_file(path)
