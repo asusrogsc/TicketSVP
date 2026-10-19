@@ -82,8 +82,8 @@ func _build_oak_floor() -> void:
 	var floor_root := Node3D.new()
 	floor_root.name = "OakFloor"
 	add_child(floor_root)
-	# La sous-couche sombre apparaît seulement dans les joints de 2 mm.
-	Build.box(floor_root, Vector3(5, 0.08, 7), Vector3(0, -0.06, 0), Color(0.18, 0.12, 0.075), false)
+	# La sous-couche sombre apparaît seulement dans les joints de 1 mm.
+	Build.box(floor_root, Vector3(5, 0.08, 7), Vector3(0, -0.06, 0), Color(0.32, 0.225, 0.13), false)
 	var body := StaticBody3D.new()
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
@@ -97,7 +97,7 @@ func _build_oak_floor() -> void:
 	var oak_shader: Shader = preload("res://shaders/oak.gdshader")
 	var board_width := 0.20
 	var board_length := 1.40
-	var gap := 0.002
+	var gap := 0.001
 	for row in range(25):
 		var x := -2.5 + (float(row) + 0.5) * board_width
 		# Trois décalages évitent les joints transversaux alignés.
@@ -114,8 +114,8 @@ func _build_oak_floor() -> void:
 				plank.position = Vector3(x, -0.009, (clipped_start + finish) * 0.5)
 				var material := ShaderMaterial.new()
 				material.shader = oak_shader
-				var tone := rng.randf_range(0.94, 1.06)
-				material.set_shader_parameter("oak_color", Color(0.58 * tone, 0.395 * tone, 0.235 * tone))
+				var tone := rng.randf_range(0.965, 1.035)
+				material.set_shader_parameter("oak_color", Color(0.67 * tone, 0.485 * tone, 0.285 * tone))
 				material.set_shader_parameter("grain_seed", rng.randf_range(0.0, 100.0))
 				plank.material_override = material
 				floor_root.add_child(plank)

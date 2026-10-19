@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
-uniform vec4 oak_color : source_color = vec4(0.58, 0.39, 0.22, 1.0);
+uniform vec4 oak_color : source_color = vec4(0.67, 0.485, 0.285, 1.0);
 uniform float grain_seed = 0.0;
 varying vec3 local_position;
 
@@ -19,14 +19,23 @@ void vertex() {
 	local_position = VERTEX;
 }
 void fragment() {
-	// Physical coordinates keep the grain scale consistent on trimmed boards.
+	// Meter-based grain: long, softly curved fibers, no periodic sine stripes.
 	vec2 p = local_position.xz + vec2(grain_seed * 7.31, grain_seed * 3.17);
-	float broad = noise(p * vec2(24.0, 1.5));
-	float warp = noise(p * vec2(13.0, 2.2));
-	float fibers = noise(vec2(p.x * 360.0 + warp * 6.0, p.y * 6.0));
-	float rings = sin(p.x * 210.0 + warp * 9.0 + broad * 3.0);
-	float grain = (broad - 0.5) * 0.15 + (fibers - 0.5) * 0.065 + rings * 0.022;
+	float bend = noise(p * vec2(9.0, 0.85));
+	float drift = noise(p * vec2(19.0, 2.4));
+	float cross_grain = p.x + (bend - 0.5) * 0.028 + (drift - 0.5) * 0.006;
+	float broad = noise(vec2(cross_grain * 39.0, p.y * 1.2));
+	float medium = noise(vec2(cross_grain * 110.0, p.y * 2.8));
+	float fine = noise(vec2(cross_grain * 280.0, p.y * 9.0));
+	// Fade small detail with distance to prevent shimmering and harsh stripes.
+	float footprint = max(length(dFdx(p)), length(dFdy(p)));
+	float fine_visibility = 1.0 - smoothstep(0.0015, 0.008, footprint);
+	float medium_visibility = 1.0 - smoothstep(0.005, 0.025, footprint);
+	float pores = smoothstep(0.73, 0.92, fine) * fine_visibility;
+	float grain = (broad - 0.5) * 0.12
+		+ (medium - 0.5) * 0.065 * medium_visibility
+		+ (fine - 0.5) * 0.022 * fine_visibility - pores * 0.026;
 	ALBEDO = oak_color.rgb * (1.0 + grain);
-	ROUGHNESS = clamp(0.64 + (fibers - 0.5) * 0.10, 0.54, 0.74);
-	SPECULAR = 0.3;
+	ROUGHNESS = clamp(0.59 + (broad - 0.5) * 0.06 + pores * 0.04, 0.54, 0.65);
+	SPECULAR = 0.28;
 }

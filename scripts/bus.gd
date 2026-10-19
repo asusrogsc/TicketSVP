@@ -8,6 +8,8 @@ const STOP_TIME := 8.0        # arrêt par défaut, portes ouvertes (réglable p
 const WRAP_BACK := 80.0
 const WRAP_LEN := 320.0
 const DOOR_Z := 0.0           # porte du milieu (côté droit, +X)
+const SPECIALS_MIN := 2       # personnages spéciaux par trajet (minimum)
+const SPECIALS_MAX := 6       # personnages spéciaux par trajet (maximum)
 
 var line: Dictionary
 var rng := RandomNumberGenerator.new()
@@ -106,16 +108,13 @@ func start() -> void:
 	specials_pool = People.specials(line)
 	specials_pool.shuffle()
 
-	# un ou deux personnages spéciaux par trajet, à des arrêts différents
+	# personnages spéciaux du trajet : SPECIALS_MIN à SPECIALS_MAX, répartis sur les arrêts intermédiaires
 	special_stops.clear()
 	if line.stops.size() > 2:
-		var count: int = 2 if rng.randf() < 0.5 else 1
-		var tries := 0
-		while special_stops.size() < count and tries < 20:
-			var s := rng.randi_range(1, line.stops.size() - 2)
-			if not special_stops.has(s):
-				special_stops.append(s)
-			tries += 1
+		var count: int = mini(rng.randi_range(SPECIALS_MIN, SPECIALS_MAX), specials_pool.size())
+		for k in count:
+			special_stops.append(rng.randi_range(1, line.stops.size() - 2))
+	print("Spéciaux prévus aux arrêts : ", special_stops)
 
 	# passagers du départ
 	for i in 7:
@@ -240,8 +239,11 @@ func _build_bus() -> void:
 			Build.box(self, Vector3(0.44, 0.08, 0.45), Vector3(sx, 0.45, sz), Color(0.15, 0.25, 0.55))
 			Build.box(self, Vector3(0.44, 0.55, 0.08), Vector3(sx, 0.75, sz + 0.24), Color(0.15, 0.25, 0.55))
 			Build.box(self, Vector3(0.06, 0.45, 0.06), Vector3(sx, 0.2, sz), Color(0.3, 0.3, 0.3), false)
-			seats.append({"pos": Vector3(sx, 0, sz - 0.02), "p": null})
+			seats.append({"pos": Vector3(sx, 0, sz - 0.02), "p": null, "standing": false})
 		sz += 1.0
+	# places debout dans l'allée (utilisées seulement quand toutes les places assises sont prises)
+	for az in [-2.5, -1.5, 1.0, 2.0, 3.0, 4.5]:
+		seats.append({"pos": Vector3(0, 0, az), "p": null, "standing": true})
 	# chauffeur
 	var drv_data := {"id": "driver", "special": false, "name": "Gérard (chauffeur)", "body": Color(0.2, 0.3, 0.5),
 		"legs": Color(0.15, 0.15, 0.2), "skin": Color(0.9, 0.72, 0.6), "hair": Color(0.4, 0.4, 0.4), "greet": ""}
@@ -261,12 +263,22 @@ func _build_bus() -> void:
 		Build.light(self, Vector3(0, H - 0.1, lz), Color(0.95, 0.97, 1), 0.35, 5.0)
 
 
-func _free_seat() -> int:
+## Place libre au hasard : d'abord assise ; debout seulement si allow_standing et plus de place assise.
+func _free_seat(allow_standing := false) -> int:
 	var free := []
+	var free_standing := []
 	for i in seats.size():
-		if seats[i].p == null:
+		if seats[i].p != null:
+			continue
+		if seats[i].get("standing", false):
+			free_standing.append(i)
+		else:
 			free.append(i)
-	return free[rng.randi() % free.size()] if free.size() > 0 else -1
+	if free.size() > 0:
+		return free[rng.randi() % free.size()]
+	if allow_standing and free_standing.size() > 0:
+		return free_standing[rng.randi() % free_standing.size()]
+	return -1
 
 
 func _spawn(data: Dictionary, seat: int, seated_now: bool) -> Passenger:
@@ -281,8 +293,11 @@ func _spawn(data: Dictionary, seat: int, seated_now: bool) -> Passenger:
 	stats.passagers += 1
 	if data.get("special", false):
 		stats.speciaux.append(data.get("name", "?"))
+	var standing: bool = seats[seat].get("standing", false)
 	if seated_now:
 		p.position = seats[seat].pos
+		if standing:
+			p.set_seated(false)
 	else:
 		p.position = Vector3(0.9, 0, DOOR_Z)
 		p.set_seated(false)
@@ -294,7 +309,7 @@ func _spawn(data: Dictionary, seat: int, seated_now: bool) -> Passenger:
 		tw.tween_property(p, "position", Vector3(0, 0, target.z), abs(target.z - DOOR_Z) / 2.0 + 0.2)
 		tw.tween_property(p, "rotation_degrees:y", 0.0, 0.2)
 		tw.tween_property(p, "position", target, 0.5)
-		tw.tween_callback(p.set_seated.bind(true))
+		tw.tween_callback(p.set_seated.bind(not standing))
 	return p
 
 
@@ -400,18 +415,24 @@ func _arrive_at_stop() -> void:
 	seated.shuffle()
 	for i in min(rng.randi_range(1, 2), seated.size()):
 		_alight(seated[i])
-	# montées
-	var n := rng.randi_range(2, 4)
+	# montées : les spéciaux prévus ici passent en premier
+	var n_special := special_stops.count(stop_index)
+	var n := maxi(rng.randi_range(2, 4), n_special)
 	for i in n:
-		var d: Dictionary = People.random_passenger(line, rng)
-		if i < special_stops.count(stop_index) and specials_pool.size() > 0:
+		var is_special: bool = i < n_special and specials_pool.size() > 0
+		# les spéciaux peuvent rester debout ; les passagers ordinaires ne montent que s'il reste une place assise
+		var seat := _free_seat(is_special)
+		if seat < 0:
+			continue                   # plus de place : un spécial n'est pas consommé, il reste dans la réserve
+		var d: Dictionary
+		if is_special:
 			d = specials_pool.pop_back()
 			hud.show_toast("Arrêt : %s — %s monte dans le bus ★" % [name_, d.get("name", "?")], Color(1, 0.8, 1), 4.0)
-		var seat := _free_seat()
-		if seat >= 0:
-			var delay := 1.0 + i * 1.2
-			get_tree().create_timer(delay).timeout.connect(_spawn.bind(d, seat, false))
-			seats[seat].p = "réservé"   # remplacé au spawn
+		else:
+			d = People.random_passenger(line, rng)
+		var delay := 1.0 + i * 1.2
+		get_tree().create_timer(delay).timeout.connect(_spawn.bind(d, seat, false))
+		seats[seat].p = "réservé"   # remplacé au spawn
 	_goto("stop", stop_wait(stop_index))
 
 
