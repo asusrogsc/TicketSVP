@@ -7,7 +7,16 @@ var lines := [
 	{
 		"id": 1, "name": "Ligne 1", "type": "Bus", "color": Color(0.1, 0.55, 0.95),
 		"from": "Gare Centrale", "to": "Université",
-		"stops": ["Gare Centrale", "Place du Marché", "Hôpital Saint-Luc", "Parc des Cerisiers", "Université"],
+		# Chaque arrêt :  nom,  route = secondes de trajet pour y arriver depuis l'arrêt précédent,
+		#                 arret = secondes portes ouvertes (pour le 1er arrêt : attente avant le départ).
+		# Sans "route" / "arret", les valeurs par défaut de bus.gd (LEG_TIME / STOP_TIME) s'appliquent.
+		"stops": [
+			{"nom": "Gare Centrale",      "arret": 5},
+			{"nom": "Place du Marché",    "route": 30, "arret": 8},
+			{"nom": "Hôpital Saint-Luc",  "route": 25, "arret": 12},
+			{"nom": "Parc des Cerisiers", "route": 35, "arret": 6},
+			{"nom": "Université",         "route": 30},
+		],
 		"unlocked": true,
 	},
 	{

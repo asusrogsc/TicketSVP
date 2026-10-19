@@ -2,9 +2,9 @@ extends Node3D
 ## Le bus : intérieur, décor qui défile, arrêts, montées / descentes, contrôles et score.
 
 const CRUISE := 13.0          # m/s (~47 km/h)
-const LEG_TIME := 30.0        # secondes de route entre deux arrêts
+const LEG_TIME := 30.0        # route par défaut entre deux arrêts (réglable par arrêt dans game.gd)
 const BRAKE_TIME := 3.0
-const STOP_TIME := 8.0
+const STOP_TIME := 8.0        # arrêt par défaut, portes ouvertes (réglable par arrêt dans game.gd)
 const WRAP_BACK := 80.0
 const WRAP_LEN := 320.0
 const DOOR_Z := 0.0           # porte du milieu (côté droit, +X)
@@ -54,7 +54,8 @@ func _ready() -> void:
 	# un ou deux personnages spéciaux par trajet, à des arrêts différents
 	for k in (2 if rng.randf() < 0.5 else 1):
 		special_stops.append(rng.randi_range(1, line.stops.size() - 2))
-	hud.show_toast("%s %s — Départ de %s. Contrôle les titres avec [E] !" % [line.type, line.name, line.stops[0]], Color(0.8, 0.95, 1), 5.0)
+	state_t = stop_wait(0) if line.stops[0] is Dictionary and line.stops[0].has("arret") else 5.0
+	hud.show_toast("%s %s — Départ de %s. Contrôle les titres avec [E] !" % [line.type, line.name, stop_name(0)], Color(0.8, 0.95, 1), 5.0)
 
 
 # ------------------------------------------------------------------ décor extérieur
@@ -257,13 +258,14 @@ func _process(delta: float) -> void:
 		"accel":
 			speed = CRUISE * (1.0 - state_t / BRAKE_TIME)
 			if state_t <= 0:
-				_goto("drive", LEG_TIME)
+				# le freinage fait aussi partie du trajet
+				_goto("drive", max(stop_route(stop_index + 1) - BRAKE_TIME * 2.0, 1.0))
 		"drive":
 			speed = CRUISE
 			if state_t <= 0:
 				_goto("brake", BRAKE_TIME)
 				# l'abri arrive pile devant la porte quand le bus s'arrête
-				_spawn_shelter(DOOR_Z - CRUISE * BRAKE_TIME / 2.0, line.stops[stop_index + 1])
+				_spawn_shelter(DOOR_Z - CRUISE * BRAKE_TIME / 2.0, stop_name(stop_index + 1))
 		"brake":
 			speed = CRUISE * max(state_t, 0.0) / BRAKE_TIME
 			if state_t <= 0:
@@ -294,13 +296,29 @@ func _process(delta: float) -> void:
 	_update_texts()
 
 
+## Arrêt n° i : accepte "Nom" ou {"nom": ..., "route": s, "arret": s}.
+func stop_name(i: int) -> String:
+	var st = line.stops[i]
+	return st.get("nom", "?") if st is Dictionary else str(st)
+
+
+func stop_route(i: int) -> float:
+	var st = line.stops[i]
+	return float(st.get("route", LEG_TIME)) if st is Dictionary else LEG_TIME
+
+
+func stop_wait(i: int) -> float:
+	var st = line.stops[i]
+	return float(st.get("arret", STOP_TIME)) if st is Dictionary else STOP_TIME
+
+
 func _goto(s: String, t: float) -> void:
 	state = s
 	state_t = t
 
 
 func _arrive_at_stop() -> void:
-	var name_: String = line.stops[stop_index]
+	var name_: String = stop_name(stop_index)
 	var last: bool = stop_index >= line.stops.size() - 1
 	_set_doors(true)
 	hud.show_toast("Arrêt : " + name_ + (" — Terminus !" if last else ""), Color(1, 0.9, 0.5), 3.0)
@@ -326,7 +344,7 @@ func _arrive_at_stop() -> void:
 			var delay := 1.0 + i * 1.2
 			get_tree().create_timer(delay).timeout.connect(_spawn.bind(d, seat, false))
 			seats[seat].p = "réservé"   # remplacé au spawn
-	_goto("stop", STOP_TIME)
+	_goto("stop", stop_wait(stop_index))
 
 
 func _set_doors(open: bool) -> void:
@@ -338,12 +356,12 @@ func _set_doors(open: bool) -> void:
 
 func _update_texts() -> void:
 	var next_i: int = min(stop_index + 1, line.stops.size() - 1)
-	var nxt: String = line.stops[next_i]
+	var nxt: String = stop_name(next_i)
 	var where := ""
 	match state:
 		"depart": where = "Départ dans %d s" % ceil(state_t)
-		"stop": where = "À l'arrêt : " + line.stops[stop_index]
-		"terminus", "fin": where = "Terminus : " + line.stops[-1]
+		"stop": where = "À l'arrêt : " + stop_name(stop_index)
+		"terminus", "fin": where = "Terminus : " + stop_name(line.stops.size() - 1)
 		_: where = "Prochain arrêt : " + nxt
 	display.text = "%s  %s → %s\n%s" % [line.name, line.from, line.to, where]
 	var ctrl := passengers.filter(func(p): return p.controlled).size()
