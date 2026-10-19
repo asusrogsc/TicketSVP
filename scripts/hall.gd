@@ -25,7 +25,7 @@ func _build_room() -> void:
 	var wall := Color(0.82, 0.76, 0.66)
 	var wood := Color(0.55, 0.36, 0.2)
 	# sol, plafond, murs (pièce de 5 x 7 m)
-	Build.box(self, Vector3(5, 0.1, 7), Vector3(0, -0.05, 0), Color(0.62, 0.43, 0.26), true, 0.6)
+	_build_oak_floor()
 	Build.box(self, Vector3(5, 0.1, 7), Vector3(0, 2.85, 0), Color(0.96, 0.95, 0.92))
 	Build.box(self, Vector3(0.1, 2.8, 7), Vector3(-2.5, 1.4, 0), wall)
 	Build.box(self, Vector3(0.1, 2.8, 7), Vector3(2.5, 1.4, 0), wall)
@@ -74,6 +74,52 @@ func _build_room() -> void:
 		var lab := Build.label3d(board, t, Vector3(0, y, 0.05), 26, l.color.darkened(0.2))
 		y -= 0.16
 	Build.label3d(board, "[E] pour choisir", Vector3(0, -0.36, 0.05), 22, Color(0.3, 0.3, 0.3))
+
+
+## Parquet de chêne : une collision plane, lames décoratives sans collision.
+## La surface reste à y = 0 pour conserver les déplacements et le mobilier.
+func _build_oak_floor() -> void:
+	var floor_root := Node3D.new()
+	floor_root.name = "OakFloor"
+	add_child(floor_root)
+	# La sous-couche sombre apparaît seulement dans les joints de 2 mm.
+	Build.box(floor_root, Vector3(5, 0.08, 7), Vector3(0, -0.06, 0), Color(0.18, 0.12, 0.075), false)
+	var body := StaticBody3D.new()
+	var collision := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(5, 0.1, 7)
+	collision.shape = shape
+	body.position.y = -0.05
+	body.add_child(collision)
+	floor_root.add_child(body)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 73129
+	var oak_shader: Shader = preload("res://shaders/oak.gdshader")
+	var board_width := 0.20
+	var board_length := 1.40
+	var gap := 0.002
+	for row in range(25):
+		var x := -2.5 + (float(row) + 0.5) * board_width
+		# Trois décalages évitent les joints transversaux alignés.
+		var start := -3.5 - float(row % 3) * board_length / 3.0
+		while start < 3.5:
+			var finish: float = minf(start + board_length, 3.5)
+			var clipped_start: float = maxf(start, -3.5)
+			var length := finish - clipped_start
+			if length > gap:
+				var plank := MeshInstance3D.new()
+				var mesh := BoxMesh.new()
+				mesh.size = Vector3(board_width - gap, 0.018, length - gap)
+				plank.mesh = mesh
+				plank.position = Vector3(x, -0.009, (clipped_start + finish) * 0.5)
+				var material := ShaderMaterial.new()
+				material.shader = oak_shader
+				var tone := rng.randf_range(0.94, 1.06)
+				material.set_shader_parameter("oak_color", Color(0.58 * tone, 0.395 * tone, 0.235 * tone))
+				material.set_shader_parameter("grain_seed", rng.randf_range(0.0, 100.0))
+				plank.material_override = material
+				floor_root.add_child(plank)
+			start += board_length
 
 
 func _on_interact(t: Node) -> void:
