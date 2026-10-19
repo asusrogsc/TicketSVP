@@ -43,7 +43,6 @@ var _started := false
 # Pépé Raymond tape la discute avec son voisin
 const CHAT_INTERVAL := 3.0
 # personnages bavards : ils cherchent une place à côté d'un spécial et lancent la conversation
-const CHATTY_IDS := ["oldman", "homme1"]
 const OLDMAN_LINES := [
 	"De mon temps, le ticket coûtait 3 francs !",
 	"Vous savez, j'ai conduit cette ligne pendant 30 ans...",
