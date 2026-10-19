@@ -34,6 +34,31 @@ var stats := {"score": 0, "controles": 0, "justes": 0, "amendes": 0, "amendes_eu
 
 var _started := false
 
+# Pépé Raymond tape la discute avec son voisin
+const CHAT_INTERVAL := 3.0
+const OLDMAN_LINES := [
+	"De mon temps, le ticket coûtait 3 francs !",
+	"Vous savez, j'ai conduit cette ligne pendant 30 ans...",
+	"Ils ont encore changé les horaires, hein ?",
+	"Mon genou annonce de la pluie pour demain.",
+	"Avant, il y avait un poinçonneur. Un vrai !",
+	"Le chauffeur, là, Gérard ? Je l'ai connu tout petit.",
+	"Vous savez pourquoi on dit « composter » ? Moi non plus.",
+]
+const PARTNER_LINES := {
+	"pampa": ["...........!", "...♪", "(agite ses bras)"],
+	"agent": ["Intéressant. Je note.", "Hmm. Pour mon rapport.", "Continuez, monsieur."],
+	"mamie": ["Oh Raymond, tu radotes !", "C'est vrai qu'avant c'était mieux...", "Tu as pris tes cachets ?"],
+	"touriste": ["Sorry, I don't understand... but yes!", "Oh, very interesting!", "Ah, French history!"],
+	"_": ["Ah bon ?", "Hmm hmm...", "Vraiment ?", "(sourit poliment)", "Je descends bientôt, hein...", "Passionnant..."],
+}
+var _chat_old: Passenger = null
+var _chat_partner: Passenger = null
+var _chat_t := 0.0
+var _chat_turn := 0
+var _chat_old_label: Label3D = null
+var _chat_partner_label: Label3D = null
+
 
 # ------------------------------------------------------------------ démarrage
 
@@ -377,6 +402,7 @@ func _process(delta: float) -> void:
 			else:
 				n.position.z -= WRAP_LEN
 	_update_texts()
+	_update_chat(delta)
 
 
 ## Arrêt n° i : accepte "Nom" ou {"nom": ..., "route": s, "arret": s}.
@@ -421,7 +447,11 @@ func _arrive_at_stop() -> void:
 	for i in n:
 		var is_special: bool = i < n_special and specials_pool.size() > 0
 		# les spéciaux peuvent rester debout ; les passagers ordinaires ne montent que s'il reste une place assise
-		var seat := _free_seat(is_special)
+		var seat := -1
+		if is_special and str(specials_pool.back().get("id", "")) == "oldman":
+			seat = _seat_next_to_special()      # Pépé va s'asseoir à côté d'un spécial s'il y a de la place
+		if seat < 0:
+			seat = _free_seat(is_special)
 		if seat < 0:
 			continue                   # plus de place : un spécial n'est pas consommé, il reste dans la réserve
 		var d: Dictionary
@@ -523,3 +553,100 @@ func _finish() -> void:
 	set_process(false)
 	stats.line = "%s %s : %s → %s" % [line.type, line.name, line.from, line.to]
 	Game.finish_trip(stats)
+
+
+# ------------------------------------------------------------------ Pépé Raymond tape la discute
+
+func _can_chat_with(p) -> bool:
+	if not (p is Passenger) or not is_instance_valid(p):
+		return false
+	if not p.data.get("special", false) or p.data.get("child", false):
+		return false
+	return not str(p.data.get("id", "")) in ["oldman", "driver", "tiph_enfant"]
+
+
+func _are_neighbors(a: int, b: int) -> bool:
+	if a < 0 or b < 0 or a == b:
+		return false
+	var sa: Dictionary = seats[a]
+	var sb: Dictionary = seats[b]
+	if sa.get("standing", false) or sb.get("standing", false):
+		return false
+	return absf(sa.pos.z - sb.pos.z) < 0.05 and signf(sa.pos.x) == signf(sb.pos.x)
+
+
+## Place assise libre juste à côté d'un personnage spécial déjà assis, ou -1.
+func _seat_next_to_special() -> int:
+	var candidates := []
+	for i in seats.size():
+		if seats[i].p != null or seats[i].get("standing", false):
+			continue
+		for j in seats.size():
+			if _are_neighbors(i, j) and _can_chat_with(seats[j].p):
+				candidates.append(i)
+				break
+	return candidates[rng.randi() % candidates.size()] if candidates.size() > 0 else -1
+
+
+func _is_settled(p: Passenger) -> bool:
+	return p.seat_index >= 0 and p.position.distance_to(seats[p.seat_index].pos) < 0.05
+
+
+func _update_chat(delta: float) -> void:
+	# conversation en cours : l'un des deux est descendu ?
+	if _chat_old != null:
+		if not passengers.has(_chat_old) or not passengers.has(_chat_partner):
+			_stop_chat()
+			return
+		_chat_t -= delta
+		if _chat_t <= 0:
+			_chat_t = CHAT_INTERVAL
+			_chat_turn += 1
+			if _chat_turn % 2 == 1:
+				_chat_old_label.text = OLDMAN_LINES[rng.randi() % OLDMAN_LINES.size()]
+				_chat_partner_label.text = ""
+			else:
+				var pid := str(_chat_partner.data.get("id", ""))
+				var lines: Array = PARTNER_LINES.get(pid, PARTNER_LINES["_"])
+				_chat_partner_label.text = lines[rng.randi() % lines.size()]
+				_chat_old_label.text = ""
+		return
+	# pas de conversation : Pépé est-il assis à côté d'un spécial ?
+	for old in passengers:
+		if str(old.data.get("id", "")) != "oldman" or not _is_settled(old):
+			continue
+		for other in passengers:
+			if _can_chat_with(other) and _is_settled(other) and _are_neighbors(old.seat_index, other.seat_index):
+				_start_chat(old, other)
+				return
+
+
+func _start_chat(old: Passenger, partner: Passenger) -> void:
+	_chat_old = old
+	_chat_partner = partner
+	_chat_t = 0.5
+	_chat_turn = 0
+	_chat_old_label = _chat_bubble(old, Color(1, 1, 0.85))
+	_chat_partner_label = _chat_bubble(partner, Color(0.85, 0.95, 1))
+
+
+func _chat_bubble(p: Passenger, col: Color) -> Label3D:
+	var l := Label3D.new()
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.font_size = 36
+	l.pixel_size = 0.003
+	l.outline_size = 8
+	l.modulate = col
+	l.position = Vector3(0, 1.75, 0)
+	p.add_child(l)
+	return l
+
+
+func _stop_chat() -> void:
+	for l in [_chat_old_label, _chat_partner_label]:
+		if l != null and is_instance_valid(l):
+			l.queue_free()
+	_chat_old = null
+	_chat_partner = null
+	_chat_old_label = null
+	_chat_partner_label = null
