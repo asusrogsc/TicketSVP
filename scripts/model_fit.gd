@@ -50,6 +50,10 @@ func _init(path: String, parent: Node3D, height := 0.0) -> void:
 
 var _cache_key := ""
 
+# Réglages appliqués uniquement au GLB de Marie Rose.
+const MARIE_KNEE_WIDTH := 0.65
+const MARIE_FOREARM_BEND := 52.0
+
 
 ## Pose debout ou assise (hanche posée sur le siège).
 func set_seated(seated: bool) -> void:
@@ -222,6 +226,7 @@ func _deform_all(seated: bool) -> Array:
 		"H": H, "c": c, "seated": seated, "tpose": tpose,
 		"hip": y0 + 0.52 * H, "knee": y0 + 0.285 * H,
 		"sh_y": y0 + 0.815 * H, "sh_x": 0.105 * H,
+		"marie": _cache_key.get_file().get_basename().to_lower() == "marie_rose",
 	}
 	var out := []
 	for e in _static_meshes:
@@ -239,7 +244,11 @@ func _deform_all(seated: bool) -> Array:
 				var r := _deform(p, P)
 				v[i] = inv * (r * p)
 				if has_n:
-					n[i] = (inv.basis * (r.basis * (rel.basis * n[i]))).normalized()
+					if P.marie:
+						var local_basis: Basis = inv.basis * r.basis * rel.basis
+						n[i] = (local_basis.inverse().transposed() * n[i]).normalized()
+					else:
+						n[i] = (inv.basis * (r.basis * (rel.basis * n[i]))).normalized()
 			arr[Mesh.ARRAY_VERTEX] = v
 			if has_n:
 				arr[Mesh.ARRAY_NORMAL] = n
@@ -280,4 +289,35 @@ func _deform(p: Vector3, P: Dictionary) -> Transform3D:
 		var knee_p := Vector3(p.x, P.knee, c.z + 0.01 * H)
 		var legs := _rot_about(hip_p, Vector3(1, 0, 0), -88.0 * w_hip) * _rot_about(knee_p, Vector3(1, 0, 0), 88.0 * w_knee)
 		t = legs * t
+	if P.seated and P.get("marie", false):
+		t = _relax_marie(p, P, t)
 	return t
+
+
+## Ajustement doux sur la pose existante, sans modifier le modèle au repos.
+func _relax_marie(p: Vector3, P: Dictionary, current: Transform3D) -> Transform3D:
+	var H: float = P.H
+	var c: Vector3 = P.c
+	var dx := p.x - c.x
+	# Hanches stables ; rapprochement progressif sous le bassin.
+	var lower := 1.0 - smoothstep(P.hip - 0.13 * H, P.hip + 0.01 * H, p.y)
+	var leg_zone := 1.0 - smoothstep(0.17 * H, 0.23 * H, absf(dx))
+	var narrowing := lerpf(1.0, MARIE_KNEE_WIDTH, lower * leg_zone)
+	var compression := Basis.from_scale(Vector3(narrowing, 1.0, 1.0))
+	var center := Vector3(c.x, 0, 0)
+	var result := Transform3D(compression, center - compression * center) * current
+	# Le modèle est en T : on repère les avant-bras avant leur abaissement.
+	if P.tpose:
+		var sx: float = P.sh_x
+		var arm_line: float = P.sh_y - (absf(dx) - sx) * _arm_tan
+		var band := 1.0 - smoothstep(0.055 * H, 0.09 * H, absf(p.y - arm_line))
+		var forearm := smoothstep(0.18 * H, 0.255 * H, absf(dx)) * band
+		if forearm > 0.0:
+			var side := signf(dx)
+			var shoulder := Vector3(c.x + side * sx, P.sh_y, c.z)
+			var elbow_rest := Vector3(c.x + side * 0.205 * H, P.sh_y - (0.205 * H - sx) * _arm_tan, c.z)
+			var drop := _rot_about(shoulder, Vector3(0, 0, 1), -side * _arm_drop)
+			var elbow := drop * elbow_rest
+			result = _rot_about(elbow, Vector3(1, 0, 0), -MARIE_FOREARM_BEND * forearm) * result
+			result.origin.x -= side * 0.025 * H * forearm
+	return result
