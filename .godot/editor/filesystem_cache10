@@ -1,5 +1,5 @@
 78098b89c88a74ebe8c20117b8754620
-::res://::1792500545
+::res://::1792501566
 bus.gd::GDScript::8972811856989910664::1792499058::0::1::::<>Node3D<><>0<>0<><>::
 LISEZ-MOI.txt::TextFile::-1::1792428532::0::1::::<><><>0<>0<><>::
 ::res://models/::1792499522
@@ -85,7 +85,7 @@ bilan.tscn::PackedScene::-1::1792427410::0::1::::<><><>0<>0<><>::res://scripts/b
 bus.tscn::PackedScene::-1::1792427410::0::1::::<><><>0<>0<><>::res://scripts/bus.gd
 gare.tscn::PackedScene::-1::1792496687::0::1::::<><><>0<>0<><>::res://scripts/gare.gd
 hall.tscn::PackedScene::6557207439863880139::1792498375::0::1::::<><><>0<>0<><>::uid://c17v8dxr17jye::::res://scripts/hall.gd
-::res://scripts/::1792500063
+::res://scripts/::1792500699
 autotest.gd::GDScript::8381581898120803958::1792428098::0::1::::<>Node<><>0<>0<><>::
 bilan.gd::GDScript::7592111177285210499::1792496688::0::1::::<>Control<><>0<>0<><>::
 build.gd::GDScript::6987842099350260980::1792428085::0::1::::Build<>RefCounted<><>0<>0<><>::
@@ -99,6 +99,7 @@ interactable.gd::GDScript::7723161679432427752::1792427161::0::1::::Interactable
 model_fit.gd::GDScript::8021398657732735799::1792499019::0::1::::ModelFit<>RefCounted<><>0<>0<><>::
 nsfw_animation_system.gd::GDScript::934040711092218488::1792500009::0::1::::NSFWAnimationSystem<>Node3D<><>0<>0<><>::
 nsfw_interaction.gd::GDScript::6527788890659499544::1792499948::0::1::::NSFWInteraction<>Node3D<><>0<>0<><>::
+nsfw_touchjambe.gd::GDScript::4169007196232559795::1792500640::0::1::::TouchInteraction<>Node3D<><>0<>0<><>::
 ordinary_visual.gd::GDScript::7510143248711441276::1792444830::0::1::::<>RefCounted<><>0<>0<><>::
 passenger.gd::GDScript::4290177380092166549::1792496688::0::1::::Passenger<>StaticBody3D<><>0<>0<><>::
 people.gd::GDScript::3133333984354874882::1792500274::0::1::::People<>RefCounted<><>0<>0<><>::
