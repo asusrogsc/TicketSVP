@@ -226,7 +226,7 @@ func _deform_all(seated: bool) -> Array:
 		"H": H, "c": c, "seated": seated, "tpose": tpose,
 		"hip": y0 + 0.52 * H, "knee": y0 + 0.285 * H,
 		"sh_y": y0 + 0.815 * H, "sh_x": 0.105 * H,
-		"marie": _cache_key.get_file().get_basename().to_lower() == "marie_rose",
+		"mzelle": _cache_key.get_file().get_basename().to_lower() == "mzelle",
 	}
 	var out := []
 	for e in _static_meshes:
@@ -244,7 +244,7 @@ func _deform_all(seated: bool) -> Array:
 				var r := _deform(p, P)
 				v[i] = inv * (r * p)
 				if has_n:
-					if P.marie:
+					if P.mzelle:
 						var local_basis: Basis = inv.basis * r.basis * rel.basis
 						n[i] = (local_basis.inverse().transposed() * n[i]).normalized()
 					else:
@@ -289,7 +289,7 @@ func _deform(p: Vector3, P: Dictionary) -> Transform3D:
 		var knee_p := Vector3(p.x, P.knee, c.z + 0.01 * H)
 		var legs := _rot_about(hip_p, Vector3(1, 0, 0), -88.0 * w_hip) * _rot_about(knee_p, Vector3(1, 0, 0), 88.0 * w_knee)
 		t = legs * t
-	if P.seated and P.get("marie", false):
+	if P.seated and P.get("mzelle", false):
 		t = _relax_marie(p, P, t)
 	return t
 

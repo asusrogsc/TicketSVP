@@ -76,7 +76,7 @@ static func random_passenger(line: Dictionary, rng: RandomNumberGenerator) -> Di
 static func specials(line: Dictionary) -> Array:
 	return [
 		{
-			"id": "marie_rose", "special": true, "name": "Marie Rose", "model": "marie_rose", "model_height": 1.52,
+			"id": "mzelle", "special": true, "name": "Mzelle", "model": "mzelle", "model_height": 1.52,
 			"body": Color(0.12, 0.12, 0.14), "legs": Color(0.95, 0.95, 0.95), "skin": Color(0.99, 0.88, 0.8),
 			"hair": Color(0.97, 0.9, 0.7), "twintails": true, "small": true,
 			"can_be_kissed": true,
@@ -129,7 +129,7 @@ static func specials(line: Dictionary) -> Array:
 			"fine_reaction": "Une amende ?! (elle fait craquer ses poings) ...Relis bien la date.",
 		},
 		{
-			"id": "tiph_enfant", "special": true, "name": "Petite Tifa", "model": "tiph_enfant",
+			"id": "judith", "special": true, "name": "Judith", "model": "judith",
 			"body": Color(0.95, 0.92, 0.8), "legs": Color(0.55, 0.4, 0.25), "skin": Color(0.99, 0.86, 0.77),
 			"hair": Color(0.1, 0.07, 0.06), "long_hair": true, "hat": true, "scale": 0.7,
 			"can_be_kissed": true,
