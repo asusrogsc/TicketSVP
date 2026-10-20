@@ -24,8 +24,12 @@ var lines := [
 		"from": "Port", "to": "Stade", "stops": [], "unlocked": false,
 	},
 ]
-var current_line: Dictionary = {}
+var current_line: Dictionary = {}      # ligne jouée par bus.gd (aller, ou aller inversé pour le retour)
 var last_result: Dictionary = {}
+var selected_line: Dictionary = {}     # ligne choisie dans le hall
+var trip_leg := "aller"                # "aller" ou "retour"
+var aller_result: Dictionary = {}      # stats de l'aller, présentées au chef de gare
+var station_boarders: Array = []       # passagers qui attendaient à la gare et montent au retour
 var career := {"trajets": 0, "argent": 0, "meilleur_score": 0}
 
 # date du jour du jeu (jour, mois, année)
@@ -68,8 +72,68 @@ func _setup_inputs() -> void:
 
 
 func start_line(line: Dictionary) -> void:
+	selected_line = line
+	trip_leg = "aller"
+	aller_result = {}
+	station_boarders = []
 	current_line = line
 	get_tree().change_scene_to_file("res://scenes/bus.tscn")
+
+
+## Appelé par bus.gd au terminus : aller -> gare, retour -> bilan.
+func end_leg(result: Dictionary) -> void:
+	if trip_leg == "aller":
+		aller_result = result
+		get_tree().change_scene_to_file("res://scenes/gare.tscn")
+	else:
+		finish_trip(_merge_results(aller_result, result))
+
+
+## Appelé par gare.gd après le rapport : trajet retour avec les passagers de la gare.
+func start_return(boarders: Array) -> void:
+	station_boarders = boarders
+	trip_leg = "retour"
+	current_line = reversed_line(selected_line if not selected_line.is_empty() else lines[0])
+	get_tree().change_scene_to_file("res://scenes/bus.tscn")
+
+
+## La même ligne dans l'autre sens (arrêts inversés, temps de route recalculés).
+func reversed_line(line: Dictionary) -> Dictionary:
+	var r := line.duplicate(true)
+	r.from = line.to
+	r.to = line.from
+	r.retour = true
+	var s: Array = line.stops
+	var n := s.size()
+	var out := []
+	for k in n:
+		var src = s[n - 1 - k]
+		var d: Dictionary = src.duplicate() if src is Dictionary else {"nom": str(src)}
+		d.erase("route")
+		if k > 0 and s[n - k] is Dictionary and s[n - k].has("route"):
+			d.route = s[n - k].route        # temps entre les deux mêmes arrêts qu'à l'aller
+		if k == 0:
+			d.arret = 5                     # attente au départ du retour (embarquement)
+		out.append(d)
+	r.stops = out
+	return r
+
+
+func _merge_results(a: Dictionary, b: Dictionary) -> Dictionary:
+	var m := a.duplicate(true)
+	for k in b:
+		var v = b[k]
+		if m.has(k) and (m[k] is int or m[k] is float) and (v is int or v is float):
+			m[k] += v
+		elif m.has(k) and m[k] is Array and v is Array:
+			m[k] = m[k] + v
+		else:
+			m[k] = v
+	m.aller_score = int(a.get("score", 0))
+	m.retour_score = int(b.get("score", 0))
+	var l := selected_line if not selected_line.is_empty() else current_line
+	m.line = "%s %s : %s ⇄ %s (aller-retour)" % [l.type, l.name, l.from, l.to]
+	return m
 
 
 func finish_trip(result: Dictionary) -> void:

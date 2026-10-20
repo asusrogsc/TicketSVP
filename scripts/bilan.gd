@@ -31,6 +31,8 @@ func _ready() -> void:
 	if sp.size() > 0:
 		_l(v, "Rencontre spéciale : " + ", ".join(sp) + " ★", 22, Color(1, 0.75, 1))
 	_l(v, " ", 8)
+	if r.has("aller_score"):
+		_l(v, "Aller : %d   |   Retour : %d" % [r.aller_score, r.retour_score], 22, Color(0.85, 0.9, 1))
 	_l(v, "SCORE : %d" % r.get("score", 0), 40, Color(1, 0.95, 0.5))
 	_l(v, "Carrière — trajets : %d   argent : %d €   meilleur score : %d" % [
 		Game.career.trajets, Game.career.argent, Game.career.meilleur_score], 18, Color(0.75, 0.75, 0.8))
@@ -41,7 +43,7 @@ func _ready() -> void:
 	var again := Button.new()
 	again.text = "Refaire la ligne"
 	again.custom_minimum_size = Vector2(220, 52)
-	again.pressed.connect(func(): Game.start_line(Game.current_line))
+	again.pressed.connect(func(): Game.start_line(Game.selected_line if not Game.selected_line.is_empty() else Game.current_line))
 	h.add_child(again)
 	var home := Button.new()
 	home.text = "Rentrer à la maison"

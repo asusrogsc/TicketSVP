@@ -156,12 +156,36 @@ func start() -> void:
 			special_stops.append(rng.randi_range(1, line.stops.size() - 2))
 	print("Spéciaux prévus aux arrêts : ", special_stops)
 
-	# passagers du départ
-	for i in 7:
-		_spawn(People.random_passenger(line, rng), _free_seat(), true)
-
 	state_t = stop_wait(0) if line.stops[0] is Dictionary and line.stops[0].has("arret") else 5.0
-	hud.show_toast("%s %s — Départ de %s. Contrôle les titres avec [E] !" % [line.type, line.name, stop_name(0)], Color(0.8, 0.95, 1), 5.0)
+
+	var retour: bool = Game.trip_leg == "retour"
+	var boarders: Array = Game.station_boarders if retour else []
+	if retour and boarders.size() > 0:
+		# les spéciaux déjà montés à la gare ne reviennent pas une 2e fois en route
+		var ids := boarders.map(func(d): return str(d.get("id", "")))
+		specials_pool = specials_pool.filter(func(d): return not str(d.get("id", "")) in ids)
+		# les passagers qui attendaient sur le quai montent un par un
+		var gap := 0.7
+		var i := 0
+		for d in boarders:
+			var seat := -1
+			if str(d.get("id", "")) in CHATTY_IDS:
+				seat = _seat_next_to_special()
+			if seat < 0:
+				seat = _free_seat(d.get("special", false))
+			if seat < 0:
+				continue
+			seats[seat].p = "réservé"
+			get_tree().create_timer(0.6 + i * gap).timeout.connect(_spawn.bind(d, seat, false))
+			i += 1
+		state_t = maxf(state_t, 2.5 + i * gap)
+	else:
+		# passagers du départ
+		for k in 7:
+			_spawn(People.random_passenger(line, rng), _free_seat(), true)
+
+	hud.show_toast("%s %s — %s de %s. Contrôle les titres avec [E] !" % [line.type, line.name,
+		"Retour, départ" if retour else "Départ", stop_name(0)], Color(0.8, 0.95, 1), 5.0)
 	set_process(true)
 
 
@@ -714,6 +738,8 @@ func _update_texts() -> void:
 		"depart": where = "Départ dans %d s" % ceil(state_t)
 		"stop": where = "À l'arrêt : " + stop_name(stop_index)
 		"terminus", "fin": where = "Terminus : " + stop_name(line.stops.size() - 1)
+	if line.get("retour", false):
+		where = "[Retour]  " + where
 		_: where = "Prochain arrêt : " + nxt
 	display.text = "%s  %s → %s\n%s" % [line.name, line.from, line.to, where]
 	var ctrl := passengers.filter(func(p): return p.controlled).size()
@@ -785,7 +811,7 @@ func _on_decided(p: Passenger, dec: String) -> void:
 func _finish() -> void:
 	set_process(false)
 	stats.line = "%s %s : %s → %s" % [line.type, line.name, line.from, line.to]
-	Game.finish_trip(stats)
+	Game.end_leg(stats)        # aller -> gare du terminus ; retour -> bilan
 
 
 # ------------------------------------------------------------------ Pépé Raymond tape la discute

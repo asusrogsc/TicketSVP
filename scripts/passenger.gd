@@ -140,6 +140,8 @@ func set_seated(seated: bool) -> void:
 
 
 func interact_label() -> String:
+	if has_meta("waiting"):          # sur le quai de la gare : on discute, pas de contrôle
+		return "Parler à %s" % data.name
 	if controlled:
 		return "%s — déjà contrôlé" % data.name
 	return "Contrôler %s" % ("le titre de " + data.name if data.special else "ce passager")
