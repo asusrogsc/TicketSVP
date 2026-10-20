@@ -1,7 +1,7 @@
 extends Node3D
 ## Hall d'entrée de la maison du joueur. Le planning au mur permet de choisir sa ligne.
-## Version « HD » : anticrénelage, ombres, occlusion ambiante, éclairage indirect,
-## matériaux plus réalistes, miroir réfléchissant et décor plus détaillé.
+## Version « HD max » : fenêtre avec rayons de soleil (brouillard volumétrique), éclairage global SDFGI,
+## papier peint, tapis persan et plâtre procéduraux, mobilier détaillé, jardin visible dehors.
 
 const QUALITY_HIGH := true    # passe à false si le PC rame
 
@@ -10,6 +10,7 @@ var hud: Hud
 var menu: CanvasLayer
 
 var _walls: Array = []        # nœuds renvoyés par Build.box (mesh ou corps physique)
+var _ceiling: Node = null
 var _woods: Array = []
 
 
@@ -18,8 +19,11 @@ func _ready() -> void:
 	_setup_rendering()
 	_build_room()
 	_build_details()
+	_build_window_and_garden()
+	_build_hd_extras()
 	_upgrade_materials()
 	_upgrade_lights()
+	_setup_sun()
 
 	hud = Hud.new()
 	add_child(hud)
@@ -45,9 +49,21 @@ func _setup_rendering() -> void:
 	if we == null or we.environment == null:
 		return
 	var env := we.environment
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 1.0
-	env.tonemap_white = 6.0
+	env.tonemap_mode = Environment.TONE_MAPPER_AGX
+	env.tonemap_exposure = 1.1
+	# éclairage global : la lumière du jour entre par la fenêtre et rebondit partout
+	env.sdfgi_enabled = QUALITY_HIGH
+	env.sdfgi_use_occlusion = true
+	env.sdfgi_energy = 1.0
+	env.sdfgi_cascades = 2
+	env.sdfgi_min_cell_size = 0.08
+	# brouillard volumétrique : rayons de soleil visibles dans la poussière
+	env.volumetric_fog_enabled = QUALITY_HIGH
+	env.volumetric_fog_density = 0.018
+	env.volumetric_fog_albedo = Color(1, 0.97, 0.92)
+	env.volumetric_fog_anisotropy = 0.6
+	env.volumetric_fog_length = 20.0
+	env.volumetric_fog_ambient_inject = 0.0
 	# occlusion ambiante : coins et dessous de meubles plus sombres
 	env.ssao_enabled = true
 	env.ssao_radius = 0.8
@@ -57,7 +73,8 @@ func _setup_rendering() -> void:
 	env.ssil_intensity = 0.8
 	# reflets à l'écran (parquet ciré, miroir)
 	env.ssr_enabled = QUALITY_HIGH
-	env.ssr_max_steps = 48
+	env.ssr_max_steps = 64
+	env.ssr_fade_in = 0.1
 	# léger halo autour des lampes
 	env.glow_enabled = true
 	env.glow_intensity = 0.4
@@ -67,6 +84,12 @@ func _setup_rendering() -> void:
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.05
 	env.adjustment_saturation = 1.08
+	if env.sky and env.sky.sky_material is ProceduralSkyMaterial:
+		var sm: ProceduralSkyMaterial = env.sky.sky_material
+		sm.sky_top_color = Color(0.28, 0.46, 0.78)
+		sm.sky_horizon_color = Color(0.8, 0.84, 0.9)
+		sm.ground_bottom_color = Color(0.25, 0.3, 0.2)
+		sm.ground_horizon_color = Color(0.7, 0.75, 0.75)
 
 
 func _find_world_environment(root: Node) -> WorldEnvironment:
@@ -81,9 +104,9 @@ func _find_world_environment(root: Node) -> WorldEnvironment:
 
 func _upgrade_materials() -> void:
 	for n in _walls:
-		var mat := _std_mat(n)
-		if mat:
-			mat.roughness = 0.88
+		_apply_shader(n, WALLPAPER_SHADER, {})
+	if _ceiling:
+		_apply_shader(_ceiling, PLASTER_SHADER, {})
 	for n in _woods:
 		var mat := _std_mat(n)
 		if mat:
@@ -98,6 +121,7 @@ func _upgrade_lights() -> void:
 		o.shadow_bias = 0.03
 		o.omni_shadow_mode = OmniLight3D.SHADOW_CUBE if QUALITY_HIGH else OmniLight3D.SHADOW_DUAL_PARABOLOID
 		o.light_specular = 0.6
+		o.light_volumetric_fog_energy = 0.25     # pas de « halo brouillard » autour des lampes
 
 
 # ------------------------------------------------------------------ pièce
@@ -107,9 +131,13 @@ func _build_room() -> void:
 	var wood := Color(0.55, 0.36, 0.2)
 	# sol, plafond, murs (pièce de 5 x 7 m)
 	_build_oak_floor()
-	Build.box(self, Vector3(5, 0.1, 7), Vector3(0, 2.85, 0), Color(0.96, 0.95, 0.92))
+	_ceiling = Build.box(self, Vector3(5, 0.1, 7), Vector3(0, 2.85, 0), Color(0.96, 0.95, 0.92))
 	_walls.append(Build.box(self, Vector3(0.1, 2.8, 7), Vector3(-2.5, 1.4, 0), wall))
-	_walls.append(Build.box(self, Vector3(0.1, 2.8, 7), Vector3(2.5, 1.4, 0), wall))
+	# mur droit, percé d'une fenêtre (z 0.8 → 2.3, y 1.1 → 2.4)
+	_walls.append(Build.box(self, Vector3(0.1, 2.8, 4.3), Vector3(2.5, 1.4, -1.35), wall))
+	_walls.append(Build.box(self, Vector3(0.1, 2.8, 1.2), Vector3(2.5, 1.4, 2.9), wall))
+	_walls.append(Build.box(self, Vector3(0.1, 1.1, 1.5), Vector3(2.5, 0.55, 1.55), wall))
+	_walls.append(Build.box(self, Vector3(0.1, 0.4, 1.5), Vector3(2.5, 2.6, 1.55), wall))
 	_walls.append(Build.box(self, Vector3(5, 2.8, 0.1), Vector3(0, 1.4, 3.5), wall))
 	# mur du fond avec la porte d'entrée
 	_walls.append(Build.box(self, Vector3(1.9, 2.8, 0.1), Vector3(-1.55, 1.4, -3.5), wall))
@@ -131,8 +159,7 @@ func _build_room() -> void:
 		_woods.append(Build.box(self, Vector3(0.02, 0.1, 7), Vector3(x, 0.05, 0), Color(0.45, 0.3, 0.18), false))
 	# tapis, meuble à chaussures, porte-manteau, miroir, lampe
 	var rug := Build.box(self, Vector3(1.6, 0.02, 3.2), Vector3(0, 0.01, -0.6), Color(0.55, 0.15, 0.18), false)
-	_make_fabric(rug)
-	Build.box(self, Vector3(1.3, 0.021, 2.9), Vector3(0, 0.011, -0.6), Color(0.62, 0.22, 0.24), false)   # bordure intérieure
+	_apply_shader(rug, RUG_SHADER, {"size": Vector2(1.6, 3.2)})
 	_woods.append(Build.box(self, Vector3(0.45, 0.9, 1.4), Vector3(2.2, 0.45, -1.6), wood))
 	_woods.append(Build.box(self, Vector3(0.5, 0.04, 1.5), Vector3(2.2, 0.92, -1.6), Color(0.35, 0.22, 0.12)))
 	Build.cylinder(self, 0.035, 1.85, Vector3(-2.1, 0.92, -2.7), Color(0.25, 0.18, 0.12))
@@ -167,15 +194,25 @@ func _build_room() -> void:
 	add_child(board)
 	Build.box(board, Vector3(1.6, 1.0, 0.05), Vector3.ZERO, Color(0.2, 0.22, 0.25))
 	Build.box(board, Vector3(1.5, 0.9, 0.02), Vector3(0, 0, 0.03), Color(0.95, 0.95, 0.9), false)
-	Build.label3d(board, "PLANNING DU JOUR", Vector3(0, 0.33, 0.05), 40, Color(0.1, 0.1, 0.15))
-	var y := 0.12
+	_make_emissive(Build.box(board, Vector3(1.5, 0.2, 0.025), Vector3(0, 0.35, 0.035), Color(0.12, 0.22, 0.45), false), Color(0.12, 0.22, 0.45), 0.15)
+	var head := Build.label3d(board, "PLANNING DU JOUR", Vector3(0, 0.35, 0.05), 40, Color(1, 1, 1))
+	head.pixel_size = 0.003
+	for px in [-0.7, 0.7]:
+		_make_metal(Build.cylinder(board, 0.015, 0.02, Vector3(px, 0.42, 0.05), Color(0.85, 0.2, 0.2)), Color(0.85, 0.2, 0.2), 0.3)
+	var y := 0.14
 	for l in Game.lines:
 		var t := "%s  %s  —  %s → %s" % [l.type, l.name, l.from, l.to]
 		if not l.unlocked:
 			t += "  (bientôt)"
-		Build.label3d(board, t, Vector3(0, y, 0.05), 26, l.color.darkened(0.2))
+		Build.box(board, Vector3(0.06, 0.06, 0.01), Vector3(-0.66, y, 0.045), l.color, false)     # pastille couleur de ligne
+		var lt := Build.label3d(board, t, Vector3(-0.6, y, 0.05), 26, l.color.darkened(0.35))
+		lt.pixel_size = 0.0021
+		lt.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		lt.outline_size = 0
 		y -= 0.16
-	Build.label3d(board, "[E] pour choisir", Vector3(0, -0.36, 0.05), 22, Color(0.3, 0.3, 0.3))
+	var hint := Build.label3d(board, "[E] pour choisir", Vector3(0, -0.36, 0.05), 22, Color(0.35, 0.35, 0.38))
+	hint.pixel_size = 0.0028
+	hint.outline_size = 0
 	# spot qui met le planning en valeur
 	var spot := SpotLight3D.new()
 	spot.position = Vector3(-1.6, 2.7, -0.6)
@@ -395,3 +432,324 @@ func _close_menu() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and menu:
 		_close_menu()
+
+
+# ------------------------------------------------------------------ fenêtre, soleil et jardin
+
+func _build_window_and_garden() -> void:
+	var white := Color(0.95, 0.94, 0.9)
+	var wx := 2.5
+	# dormant, croisillons, vitres
+	for zz in [0.8, 2.3]:
+		Build.box(self, Vector3(0.14, 1.4, 0.07), Vector3(wx - 0.03, 1.75, zz), white, false)
+	for yy in [1.1, 2.4]:
+		Build.box(self, Vector3(0.14, 0.07, 1.57), Vector3(wx - 0.03, yy, 1.55), white, false)
+	Build.box(self, Vector3(0.08, 1.3, 0.05), Vector3(wx, 1.75, 1.55), white, false)       # meneau
+	Build.box(self, Vector3(0.08, 0.05, 1.5), Vector3(wx, 1.95, 1.55), white, false)       # traverse
+	var glass := Build.box(self, Vector3(0.015, 1.3, 1.5), Vector3(wx, 1.75, 1.55), Color(0.85, 0.92, 1.0, 0.08), false)
+	_make_glass(glass)
+	# appui de fenêtre + radiateur dessous
+	_woods.append(Build.box(self, Vector3(0.28, 0.04, 1.7), Vector3(wx - 0.14, 1.08, 1.55), Color(0.92, 0.9, 0.86), false))
+	for k in 10:
+		_make_metal(Build.box(self, Vector3(0.08, 0.55, 0.03), Vector3(wx - 0.12, 0.55, 1.0 + k * 0.12), Color(0.93, 0.93, 0.92), false), Color(0.93, 0.93, 0.92), 0.35)
+	_make_metal(Build.cylinder(self, 0.012, 1.3, Vector3(wx - 0.12, 0.25, 1.55), Color(0.9, 0.9, 0.9)), Color(0.9, 0.9, 0.9), 0.3)
+	# tringle et rideaux à plis
+	var rod := Build.cylinder(self, 0.015, 2.3, Vector3(wx - 0.12, 2.6, 1.55), Color(0.7, 0.55, 0.3))
+	rod.rotation_degrees.x = 90
+	_make_metal(rod, Color(0.75, 0.6, 0.32), 0.3)
+	for side in [-1, 1]:
+		var cz: float = 1.55 + side * 0.95
+		for k in 6:
+			var fold := Build.box(self, Vector3(0.05, 2.0, 0.09), Vector3(wx - 0.1 - (k % 2) * 0.04, 1.6, cz + (k - 2.5) * 0.075),
+				Color(0.62, 0.18, 0.2).darkened(0.06 * (k % 2)), false)
+			_make_fabric(fold)
+		# embrasse dorée
+		_make_metal(Build.box(self, Vector3(0.1, 0.03, 0.5), Vector3(wx - 0.1, 1.2, cz), Color(0.85, 0.7, 0.3), false), Color(0.85, 0.7, 0.3), 0.3)
+
+	# le jardin dehors : pelouse, haie, arbres, maison d'en face
+	var outside := Node3D.new()
+	add_child(outside)
+	var grass := Build.box(outside, Vector3(40, 0.1, 40), Vector3(22.6, -0.1, 0), Color(0.32, 0.52, 0.26), false)
+	_make_fabric(grass)
+	Build.box(outside, Vector3(1.2, 0.04, 6), Vector3(3.4, -0.03, 1.5), Color(0.7, 0.68, 0.64), false)   # allée
+	var hedge := Build.box(outside, Vector3(0.8, 1.3, 30), Vector3(9.0, 0.65, 0), Color(0.18, 0.38, 0.18), false)
+	_make_fabric(hedge)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	for tz in [-6.0, 1.0, 7.5]:
+		var trunk := Build.cylinder(outside, 0.18, 3.0, Vector3(7.0, 1.5, tz), Color(0.36, 0.25, 0.15))
+		_make_fabric(trunk)
+		for k in 5:
+			var leaves := MeshInstance3D.new()
+			var sm := SphereMesh.new()
+			sm.radius = rng.randf_range(1.0, 1.5)
+			sm.height = sm.radius * 1.8
+			leaves.mesh = sm
+			leaves.material_override = Build.mat(Color(0.22, 0.46 + rng.randf() * 0.12, 0.2), 1.0)
+			leaves.position = Vector3(7.0 + rng.randf_range(-0.7, 0.7), 3.6 + rng.randf_range(-0.3, 0.9), tz + rng.randf_range(-0.7, 0.7))
+			outside.add_child(leaves)
+	var house := Build.box(outside, Vector3(8, 7, 14), Vector3(18, 3.5, 1), Color(0.88, 0.8, 0.68), false)
+	_make_fabric(house)
+	var roof := Build.box(outside, Vector3(8.6, 0.4, 14.6), Vector3(18, 7.2, 1), Color(0.55, 0.25, 0.2), false)
+	_make_fabric(roof)
+	for wz in [-3.5, 1.0, 5.5]:
+		for wy in [1.8, 4.8]:
+			Build.box(outside, Vector3(0.05, 1.3, 1.1), Vector3(13.97, wy, wz), white, false)
+			var g := Build.box(outside, Vector3(0.05, 1.15, 0.95), Vector3(13.95, wy, wz), Color(0.4, 0.5, 0.62), false)
+			_make_metal(g, Color(0.4, 0.5, 0.62), 0.08)
+
+
+func _setup_sun() -> void:
+	# soleil d'après-midi qui entre par la fenêtre et dessine les croisillons au sol
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-30, 68, 0)
+	sun.light_color = Color(1, 0.88, 0.7)
+	sun.light_energy = 2.2
+	sun.light_volumetric_fog_energy = 2.5
+	sun.shadow_enabled = true
+	sun.shadow_bias = 0.02
+	sun.shadow_normal_bias = 1.0
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance = 40.0
+	add_child(sun)
+
+
+# ------------------------------------------------------------------ mobilier et décor supplémentaires
+
+func _build_hd_extras() -> void:
+	var wood := Color(0.42, 0.26, 0.14)
+	var brass := Color(0.85, 0.7, 0.35)
+	var cream := Color(1, 0.94, 0.82)
+
+	# rosace au plafond autour de la suspension
+	_woods.append(Build.cylinder(self, 0.3, 0.03, Vector3(0, 2.785, 0), Color(0.96, 0.95, 0.92)))
+	_woods.append(Build.cylinder(self, 0.2, 0.05, Vector3(0, 2.77, 0), Color(0.96, 0.95, 0.92)))
+
+	# --- mur du fond (côté joueur) : console, lampe, grande affiche, appliques
+	var cz := 3.25
+	_woods.append(Build.box(self, Vector3(1.4, 0.05, 0.38), Vector3(0, 0.8, cz), wood))
+	for lx in [-0.64, 0.64]:
+		for lz in [cz - 0.15, cz + 0.15]:
+			_woods.append(Build.box(self, Vector3(0.04, 0.78, 0.04), Vector3(lx, 0.39, lz), wood, false))
+	_woods.append(Build.box(self, Vector3(1.3, 0.03, 0.32), Vector3(0, 0.25, cz), wood, false))   # tablette basse
+	for k in 3:   # livres sur la tablette
+		Build.box(self, Vector3(0.05, 0.22, 0.2), Vector3(-0.5 + k * 0.06, 0.375, cz), Color.from_hsv(0.1 + k * 0.3, 0.5, 0.55), false)
+	# lampe de table
+	_make_metal(Build.cylinder(self, 0.07, 0.03, Vector3(0.45, 0.84, cz), brass), brass, 0.3)
+	_make_metal(Build.cylinder(self, 0.015, 0.35, Vector3(0.45, 1.0, cz), brass), brass, 0.3)
+	var shade := Build.cylinder(self, 0.15, 0.2, Vector3(0.45, 1.24, cz), cream)
+	_make_emissive(shade, Color(1, 0.86, 0.62), 1.6)
+	Build.light(self, Vector3(0.45, 1.2, cz - 0.1), Color(1, 0.82, 0.58), 0.45, 3.5)
+	# vide-poche et clés, petite plante
+	_make_metal(Build.cylinder(self, 0.1, 0.03, Vector3(-0.2, 0.84, cz), Color(0.3, 0.45, 0.6)), Color(0.3, 0.45, 0.6), 0.2)
+	_make_metal(Build.box(self, Vector3(0.06, 0.01, 0.02), Vector3(-0.2, 0.86, cz), brass, false), brass, 0.25)
+	Build.cylinder(self, 0.06, 0.1, Vector3(-0.5, 0.88, cz), Color(0.9, 0.9, 0.88))
+	var succ := MeshInstance3D.new()
+	var ss := SphereMesh.new()
+	ss.radius = 0.08
+	ss.height = 0.12
+	succ.mesh = ss
+	succ.material_override = Build.mat(Color(0.3, 0.55, 0.35), 0.9)
+	succ.position = Vector3(-0.5, 0.97, cz)
+	add_child(succ)
+	# grande affiche rétro du réseau
+	_woods.append(Build.box(self, Vector3(1.0, 0.75, 0.03), Vector3(0, 1.75, 3.43), Color(0.15, 0.1, 0.06), false))
+	var poster := Build.box(self, Vector3(0.9, 0.65, 0.01), Vector3(0, 1.75, 3.41), Color(0.95, 0.88, 0.7), false)
+	_make_fabric(poster)
+	Build.box(self, Vector3(0.9, 0.18, 0.012), Vector3(0, 1.55, 3.405), Color(0.85, 0.35, 0.2), false)        # soleil couchant
+	var bus_shape := Build.box(self, Vector3(0.5, 0.16, 0.014), Vector3(0, 1.7, 3.4), Color(0.1, 0.45, 0.85), false)
+	_make_fabric(bus_shape)
+	for wx in [-0.17, -0.06, 0.05, 0.16]:
+		Build.box(self, Vector3(0.08, 0.06, 0.016), Vector3(wx, 1.73, 3.398), Color(0.9, 0.95, 1.0), false)
+	for wx in [-0.15, 0.15]:
+		Build.cylinder(self, 0.035, 0.018, Vector3(wx, 1.61, 3.398), Color(0.1, 0.1, 0.1)).rotation_degrees.x = 90
+	var pt := Build.label3d(self, "LIGNE 1 — DEPUIS 1962", Vector3(0, 1.98, 3.395), 30, Color(0.15, 0.15, 0.25))
+	pt.rotation_degrees.y = 180
+	pt.pixel_size = 0.0022
+	pt.outline_size = 0
+	# appliques murales
+	for sx in [-1.95, 1.95]:
+		_make_metal(Build.box(self, Vector3(0.12, 0.2, 0.04), Vector3(sx, 2.0, 3.43), brass, false), brass, 0.3)
+		var tulip := Build.cylinder(self, 0.08, 0.14, Vector3(sx, 2.12, 3.36), cream)
+		_make_emissive(tulip, Color(1, 0.85, 0.6), 1.4)
+		Build.light(self, Vector3(sx, 2.2, 3.3), Color(1, 0.84, 0.6), 0.3, 3.0)
+
+	# --- côté porte : imposte lumineuse, interrupteur, porte-parapluies, banc à chaussures
+	var fan := Build.box(self, Vector3(1.0, 0.3, 0.02), Vector3(0, 2.42, -3.44), Color(0.95, 0.97, 1.0), false)
+	_make_emissive(fan, Color(0.95, 0.97, 1.0), 1.2)
+	for k in 4:
+		Build.box(self, Vector3(0.025, 0.3, 0.025), Vector3(-0.36 + k * 0.24, 2.42, -3.43), Color(0.95, 0.94, 0.9), false)
+	Build.box(self, Vector3(0.08, 0.12, 0.015), Vector3(0.8, 1.1, -3.44), Color(0.96, 0.96, 0.94), false)   # interrupteur
+	Build.box(self, Vector3(0.12, 0.2, 0.02), Vector3(0.8, 1.45, -3.44), Color(0.2, 0.2, 0.22), false)      # interphone
+	_make_emissive(Build.box(self, Vector3(0.06, 0.04, 0.005), Vector3(0.8, 1.5, -3.428), Color(0.3, 0.8, 1), false), Color(0.3, 0.8, 1), 0.8)
+	_make_metal(Build.cylinder(self, 0.13, 0.5, Vector3(1.05, 0.25, -3.1), Color(0.2, 0.3, 0.35)), Color(0.2, 0.3, 0.35), 0.3)
+	for k in 2:
+		var umb := Build.cylinder(self, 0.035, 0.8, Vector3(1.0 + k * 0.08, 0.6, -3.1), [Color(0.1, 0.1, 0.12), Color(0.7, 0.15, 0.15)][k])
+		umb.rotation_degrees.z = 8 - k * 14
+	_woods.append(Build.box(self, Vector3(0.9, 0.04, 0.35), Vector3(-1.4, 0.45, -3.2), wood))
+	for bx in [-1.8, -1.0]:
+		_woods.append(Build.box(self, Vector3(0.04, 0.45, 0.33), Vector3(bx, 0.225, -3.2), wood, false))
+	for k in 2:   # chaussures de service rangées dessous
+		Build.box(self, Vector3(0.11, 0.08, 0.28), Vector3(-1.55 + k * 0.14, 0.04, -3.2), Color(0.06, 0.06, 0.07), false)
+
+	# --- porte-manteau : veste de contrôleur et écharpe
+	var coat := MeshInstance3D.new()
+	var cm := CapsuleMesh.new()
+	cm.radius = 0.15
+	cm.height = 0.85
+	coat.mesh = cm
+	coat.material_override = Build.mat(Color(0.12, 0.18, 0.38), 0.9)
+	coat.position = Vector3(-2.0, 1.33, -2.62)
+	add_child(coat)
+	Build.box(self, Vector3(0.31, 0.03, 0.31), Vector3(-2.0, 1.25, -2.62), Color(0.95, 0.8, 0.1), false)   # bande réfléchissante
+	var scarf := Build.box(self, Vector3(0.08, 0.6, 0.12), Vector3(-2.15, 1.45, -2.78), Color(0.75, 0.2, 0.2), false)
+	scarf.rotation_degrees.x = 10
+	_make_fabric(scarf)
+
+	# --- meuble à chaussures : tiroirs et boutons
+	for dy in [0.25, 0.6]:
+		Build.box(self, Vector3(0.01, 0.006, 1.3), Vector3(1.973, dy + 0.17, -1.6), Color(0.25, 0.15, 0.08), false)
+		for dz in [-1.9, -1.3]:
+			var knob := Build.cylinder(self, 0.018, 0.03, Vector3(1.965, dy, dz), brass)
+			knob.rotation_degrees.z = 90
+			_make_metal(knob, brass, 0.25)
+
+	# --- horloge murale au-dessus du planning
+	var clock := Build.cylinder(self, 0.18, 0.04, Vector3(-2.43, 2.35, -0.6), Color(0.97, 0.96, 0.92))
+	clock.rotation_degrees.z = 90
+	var rim := Build.cylinder(self, 0.2, 0.03, Vector3(-2.44, 2.35, -0.6), Color(0.2, 0.12, 0.06))
+	rim.rotation_degrees.z = 90
+	var t := Time.get_time_dict_from_system()
+	for hand in [[deg_to_rad((t.hour % 12) * 30.0 + t.minute * 0.5), 0.1, 0.014], [deg_to_rad(t.minute * 6.0), 0.15, 0.009]]:
+		var h := Build.box(self, Vector3(0.006, hand[1], hand[2]), Vector3.ZERO, Color(0.08, 0.08, 0.1), false)
+		h.rotation = Vector3(-hand[0], 0, 0)
+		h.position = Vector3(-2.405, 2.35, -0.6) + Vector3(0, cos(hand[0]), -sin(hand[0])) * hand[1] * 0.5
+
+
+func _make_glass(n: Node) -> void:
+	var m := _mesh_of(n)
+	if m == null:
+		return
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.85, 0.92, 1.0, 0.08)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.metallic = 0.2
+	mat.roughness = 0.02
+	m.material_override = mat
+	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+# ------------------------------------------------------------------ matériaux procéduraux
+
+const WALLPAPER_SHADER := """
+shader_type spatial;
+uniform vec4 col_a : source_color = vec4(0.86, 0.8, 0.7, 1.0);
+uniform vec4 col_b : source_color = vec4(0.8, 0.73, 0.62, 1.0);
+uniform vec4 col_motif : source_color = vec4(0.72, 0.62, 0.5, 1.0);
+varying vec3 wpos;
+varying vec3 wnrm;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+}
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
+void fragment() {
+	vec3 n = abs(wnrm);
+	vec2 uv = n.x > n.z ? wpos.zy : wpos.xy;
+	// rayures verticales larges / fines
+	float s = fract(uv.x / 0.24);
+	vec3 col = s < 0.5 ? col_a.rgb : col_b.rgb;
+	col = mix(col, col_b.rgb * 0.92, step(0.48, s) * step(s, 0.52));
+	// petit motif losange dans les bandes claires
+	vec2 m = vec2(fract(uv.x / 0.24) - 0.25, fract(uv.y / 0.16) - 0.5);
+	float d = abs(m.x) * 3.0 + abs(m.y) * 2.0;
+	if (s < 0.5 && d < 0.18) col = mix(col, col_motif.rgb, 0.7);
+	// grain du papier
+	col *= 0.95 + 0.07 * noise(uv * 60.0) + 0.03 * noise(uv * 4.0);
+	ALBEDO = col;
+	ROUGHNESS = 0.9;
+}
+"""
+
+const PLASTER_SHADER := """
+shader_type spatial;
+varying vec3 wpos;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+}
+void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	float n = noise(wpos.xz * 25.0) * 0.6 + noise(wpos.xz * 3.0) * 0.4;
+	ALBEDO = vec3(0.95, 0.94, 0.91) * (0.95 + 0.06 * n);
+	ROUGHNESS = 0.95;
+}
+"""
+
+const RUG_SHADER := """
+shader_type spatial;
+uniform vec2 size = vec2(1.6, 3.2);
+varying vec3 lpos;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+}
+void vertex() { lpos = VERTEX; }
+void fragment() {
+	vec2 p = lpos.xz;
+	vec2 h = size * 0.5;
+	float e = min(h.x - abs(p.x), h.y - abs(p.y));      // distance au bord (m)
+	vec3 red = vec3(0.55, 0.1, 0.12);
+	vec3 navy = vec3(0.1, 0.13, 0.3);
+	vec3 cream = vec3(0.9, 0.82, 0.62);
+	vec3 gold = vec3(0.8, 0.6, 0.25);
+	vec3 col = red;
+	if (e < 0.08) {
+		col = navy;
+	} else if (e < 0.095) {
+		col = cream;
+	} else if (e < 0.22) {
+		// frise : petits losanges le long du bord
+		float t = (abs(p.x) > h.x - 0.22 && abs(p.y) < h.y - 0.22) ? p.y : p.x;
+		float f = abs(fract(t / 0.12) - 0.5) * 2.0;
+		float band = abs((e - 0.157) / 0.06);
+		col = (f + band < 0.9) ? gold : red * 0.85;
+	} else if (e < 0.235) {
+		col = cream;
+	} else {
+		// champ : treillis de losanges + médaillon central
+		float l = min(abs(fract((p.x + p.y) * 3.0) - 0.5), abs(fract((p.x - p.y) * 3.0) - 0.5));
+		col = l < 0.04 ? gold * 0.9 : red;
+		float r = length(p * vec2(1.0, 0.62));
+		if (r < 0.42) col = navy;
+		if (r < 0.42 && r > 0.39) col = cream;
+		if (r < 0.2) col = mix(red, gold, step(0.5, fract(r * 25.0)));
+	}
+	col *= 0.85 + 0.2 * noise(p * 140.0) + 0.05 * noise(p * 9.0);   // velours de la laine
+	ALBEDO = col;
+	ROUGHNESS = 1.0;
+	SPECULAR = 0.2;
+}
+"""
+
+func _apply_shader(n: Node, code: String, params: Dictionary) -> void:
+	var m := _mesh_of(n)
+	if m == null:
+		return
+	if not _shader_cache.has(code):
+		var sh := Shader.new()
+		sh.code = code
+		_shader_cache[code] = sh
+	var mat := ShaderMaterial.new()
+	mat.shader = _shader_cache[code]
+	for k in params:
+		mat.set_shader_parameter(k, params[k])
+	m.material_override = mat
+
+var _shader_cache := {}
