@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dj4ksl08ig15d"
-path.s3tc="res://.godot/imported/marie_rose_0.png-698c6f2c48e9b7f1dd473a8f08b07352.s3tc.ctex"
+uid="uid://dw70mt2i5lwfj"
+path.s3tc="res://.godot/imported/mzelle_0.png-565cad8cc9a7e74b894f73c38a4aafb7.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -14,8 +14,8 @@ generator_parameters={
 
 [deps]
 
-source_file="res://models/marie_rose_0.png"
-dest_files=["res://.godot/imported/marie_rose_0.png-698c6f2c48e9b7f1dd473a8f08b07352.s3tc.ctex"]
+source_file="res://models/mzelle_0.png"
+dest_files=["res://.godot/imported/mzelle_0.png-565cad8cc9a7e74b894f73c38a4aafb7.s3tc.ctex"]
 
 [params]
 

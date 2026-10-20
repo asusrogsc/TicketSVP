@@ -76,7 +76,7 @@ static func random_passenger(line: Dictionary, rng: RandomNumberGenerator) -> Di
 static func specials(line: Dictionary) -> Array:
 	return [
 		{
-			"id": "mzelle", "special": true, "name": "Mzelle", "model": "mzelle", "model_height": 1.52,
+			"id": "mzelle", "special": true, "name": "Mzelle", "model": "Mzelle", "model_height": 1.52,
 			"body": Color(0.12, 0.12, 0.14), "legs": Color(0.95, 0.95, 0.95), "skin": Color(0.99, 0.88, 0.8),
 			"hair": Color(0.97, 0.9, 0.7), "twintails": true, "small": true,
 			"can_be_kissed": true,
@@ -118,7 +118,7 @@ static func specials(line: Dictionary) -> Array:
 			"fine_reaction": "What?! But it's a valid pass! This country is crazy!",
 		},
 		{
-			"id": "tiph", "special": true, "name": "Tifa Lockhart", "model": "tiph", "model_height": 1.67,
+			"id": "julie", "special": true, "name": "Julie", "model": "julie", "model_height": 1.67,
 			"body": Color(0.95, 0.95, 0.93), "legs": Color(0.1, 0.1, 0.11), "skin": Color(0.98, 0.84, 0.74),
 			"hair": Color(0.08, 0.06, 0.06), "long_hair": true, "gloves": true,
 			"can_be_kissed": true,
@@ -141,7 +141,7 @@ static func specials(line: Dictionary) -> Array:
 			"fine_reaction": "(elle se met à pleurer) Mais... c'est maman qui l'a acheté...",
 		},
 		{
-			"id": "tiph_chinese", "special": true, "name": "Tifa (robe chinoise)", "model": "tiph_chinese",
+			"id": "fany", "special": true, "name": "Fany", "model": "fany",
 			"body": Color(0.25, 0.35, 0.75), "legs": Color(0.25, 0.35, 0.75), "skin": Color(0.98, 0.84, 0.74),
 			"hair": Color(0.08, 0.06, 0.06), "braid": true,
 			"can_be_kissed": true,
@@ -176,7 +176,7 @@ static func specials(line: Dictionary) -> Array:
 			"fine_reaction": "Une amende ? À mon âge ? Vous n’avez pas honte ?",
 		},
 		{
-			"id": "homme1", "special": true, "name": "Roshi", "model": "Homme1",
+			"id": "male1", "special": true, "name": "Roshi", "model": "male1",
 			"model_height": 1.7,
 			"body": Color(0.45, 0.4, 0.38), "legs": Color(0.25, 0.25, 0.28),
 			"skin": Color(0.9, 0.78, 0.7), "hair": Color(0.75, 0.75, 0.78),
@@ -189,7 +189,7 @@ static func specials(line: Dictionary) -> Array:
 			"fine_reaction": "Une amende ? À mon âge ? Vous n’avez pas honte ?",
 		},
 		{
-			"id": "homme2", "special": true, "name": "Alex", "model": "Homme2",
+			"id": "male2", "special": true, "name": "Alex", "model": "male2",
 			"model_height": 1.7,
 			"body": Color(0.45, 0.4, 0.38), "legs": Color(0.25, 0.25, 0.28),
 			"skin": Color(0.9, 0.78, 0.7), "hair": Color(0.75, 0.75, 0.78),

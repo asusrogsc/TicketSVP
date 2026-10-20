@@ -8,14 +8,14 @@ const STOP_TIME := 8.0        # arrêt par défaut, portes ouvertes (réglable p
 const WRAP_BACK := 80.0
 const WRAP_LEN := 320.0
 const DOOR_Z := 0.0           # porte du milieu (côté droit, +X)
-const BOARD_MIN := 12          # passagers qui montent à chaque arrêt (min)   — avant : 2
-const BOARD_MAX := 15          # passagers qui montent à chaque arrêt (max)   — avant : 4
+const BOARD_MIN := 16          # passagers qui montent à chaque arrêt (min)   — avant : 2
+const BOARD_MAX := 20          # passagers qui montent à chaque arrêt (max)   — avant : 4
 const ALIGHT_MIN := 1         # passagers qui descendent à chaque arrêt (min) — avant : 1
 const ALIGHT_MAX := 3         # passagers qui descendent à chaque arrêt (max) — avant : 2
 const SPECIALS_MIN := 5       # personnages spéciaux par trajet (minimum)
 const QUALITY_HIGH := true    # passe à false si le PC rame
 const SPECIALS_MAX := 10       # personnages spéciaux par trajet (maximum)
-const CHATTY_IDS := ["oldman", "homme1", "homme2"]
+const CHATTY_IDS := ["oldman", "male1", "male2"]
 
 var line: Dictionary
 var rng := RandomNumberGenerator.new()
@@ -195,11 +195,14 @@ func _build_city() -> void:
 	var asphalt := Color(0.2, 0.2, 0.22)
 	var pavement := Color(0.62, 0.61, 0.58)
 	# chaussée, bordures, trottoirs, pelouses (fixes, très longs)
-	_rough(Build.box(self, Vector3(14, 0.1, 400), Vector3(0, -0.8, -100), asphalt, false), 0.95)
+	_tiles(Build.box(self, Vector3(14, 0.1, 400), Vector3(0, -0.8, -100), asphalt, false),
+		Vector2(4, 4), 0.0, 0.0, asphalt, asphalt, 0.0, 0.55, 0.92, true)
 	for side in [-1, 1]:
 		_rough(Build.box(self, Vector3(0.25, 0.3, 400), Vector3(side * 7.1, -0.65, -100), Color(0.75, 0.75, 0.72), false), 0.8)   # bordure
-		_rough(Build.box(self, Vector3(4, 0.25, 400), Vector3(side * 9, -0.65, -100), pavement, false), 0.9)                       # trottoir
-		_rough(Build.box(self, Vector3(30, 0.1, 400), Vector3(side * 26, -0.75, -100), Color(0.3, 0.5, 0.26), false), 1.0)          # pelouse
+		_tiles(Build.box(self, Vector3(4, 0.25, 400), Vector3(side * 9, -0.65, -100), pavement, false),
+			Vector2(0.6, 0.6), 0.0, 0.012, pavement, pavement.darkened(0.3), 0.1, 0.25, 0.9, true)                 # trottoir
+		_tiles(Build.box(self, Vector3(30, 0.1, 400), Vector3(side * 26, -0.75, -100), Color.WHITE, false),
+			Vector2(1.5, 1.5), 0.0, 0.0, Color(0.3, 0.5, 0.26), Color.BLACK, 0.06, 0.4, 1.0, true)                  # pelouse
 		Build.box(self, Vector3(0.12, 0.02, 400), Vector3(side * 6.6, -0.745, -100), Color(0.92, 0.92, 0.88), false)              # ligne de rive
 
 	var z := -240.0
@@ -265,7 +268,12 @@ func _building(side: int, z: float, w: float) -> Node3D:
 	b.position = Vector3(side * rng.randf_range(16, 22), -0.6, z)
 	world.add_child(b)
 	var face := -side * (depth / 2 + 0.02)      # façade tournée vers la rue
-	_rough(Build.box(b, Vector3(depth, h, w * 0.9), Vector3(0, h / 2, 0), col, false), 0.9)
+	if rng.randf() < 0.55:      # briques
+		_tiles(Build.box(b, Vector3(depth, h, w * 0.9), Vector3(0, h / 2, 0), col, false),
+			Vector2(0.24, 0.075), 0.5, 0.012, col, col.lightened(0.35), 0.3, 0.12, 0.9, false, true)
+	else:                        # enduit
+		_tiles(Build.box(b, Vector3(depth, h, w * 0.9), Vector3(0, h / 2, 0), col, false),
+			Vector2(3, 3), 0.0, 0.0, col, col, 0.04, 0.3, 0.95, false, true)
 	# corniche de toit + rebord
 	_rough(Build.box(b, Vector3(depth + 0.4, 0.35, w * 0.9 + 0.4), Vector3(0, h + 0.17, 0), col.darkened(0.25), false), 0.85)
 	# rez-de-chaussée : vitrine de magasin + auvent
@@ -344,15 +352,21 @@ func _build_bus() -> void:
 	var L := 12.0; var W := 2.5; var H := 2.45
 	var body: Color = line.color
 	Build.box(self, Vector3(W, 0.2, L), Vector3(0, -0.1, 0), Color(0.35, 0.36, 0.38))          # plancher
-	Build.box(self, Vector3(W, 0.1, L), Vector3(0, H + 0.05, 0), Color(0.88, 0.88, 0.86))     # plafond
-	Build.box(self, Vector3(W, H, 0.1), Vector3(0, H / 2, L / 2), Color(0.72, 0.74, 0.77))    # arrière
+	_tiles(Build.box(self, Vector3(W, 0.1, L), Vector3(0, H + 0.05, 0), Color(0.9, 0.9, 0.88)),
+		Vector2(0.62, 1.2), 0.0, 0.012, Color(0.92, 0.92, 0.9), Color(0.6, 0.6, 0.6), 0.02, 0.05, 0.6, false, true)   # plafond
+	# arrière : cadre autour de la lunette (la route qui défile est visible derrière)
+	Build.box(self, Vector3(W, 1.2, 0.1), Vector3(0, 0.6, L / 2), Color(0.72, 0.74, 0.77))
+	Build.box(self, Vector3(W, H - 2.0, 0.1), Vector3(0, 2.0 + (H - 2.0) / 2, L / 2), Color(0.72, 0.74, 0.77))
+	for sx in [-1, 1]:
+		Build.box(self, Vector3(0.2, 0.8, 0.1), Vector3(sx * 1.15, 1.6, L / 2), Color(0.72, 0.74, 0.77))
 	# avant : pare-brise + tableau de bord
 	Build.box(self, Vector3(W, 0.9, 0.3), Vector3(0, 0.45, -L / 2), Color(0.15, 0.15, 0.17))
 	Build.box(self, Vector3(W, H - 0.9, 0.05), Vector3(0, 0.9 + (H - 0.9) / 2, -L / 2 - 0.1), Color(0.7, 0.85, 0.95, 0.15), true, 0.05)
 	# côtés : soubassement, vitres, bandeau haut, montants
 	for side in [-1, 1]:
 		var x: float = side * W / 2
-		Build.box(self, Vector3(0.1, 0.95, L), Vector3(x, 0.475, 0), Color(0.72, 0.74, 0.77))
+		_tiles(Build.box(self, Vector3(0.1, 0.95, L), Vector3(x, 0.475, 0), Color(0.72, 0.74, 0.77)),
+			Vector2(1.5, 0.95), 0.0, 0.01, Color(0.78, 0.79, 0.81), Color(0.45, 0.46, 0.48), 0.02, 0.08, 0.55, false, true)
 		Build.box(self, Vector3(0.1, 0.45, L), Vector3(x, H - 0.225, 0), body.darkened(0.35))
 		Build.box(self, Vector3(0.04, 1.05, L), Vector3(x, 1.475, 0), Color(0.75, 0.88, 0.97, 0.18), true, 0.05)
 		var pz := -L / 2 + 0.75
@@ -366,7 +380,9 @@ func _build_bus() -> void:
 			d.set_meta("closed_z", dz + 0.3 * k)
 			d.set_meta("dir", k)
 			doors.append(d)
-		Build.box(self, Vector3(0.25, 1.1, 0.2), Vector3(W / 2 - 0.35, 0.55, dz - 0.85), Color(0.95, 0.75, 0.1), false)  # composteur
+		_metal(Build.box(self, Vector3(0.05, 1.0, 0.05), Vector3(W / 2 - 0.35, 0.5, dz - 0.85), Color(0.6, 0.62, 0.65), false), 0.3)   # pied du composteur
+		_rough(Build.box(self, Vector3(0.22, 0.4, 0.18), Vector3(W / 2 - 0.37, 1.0, dz - 0.85), Color(0.2, 0.21, 0.23), false), 0.45)   # boîtier
+		Build.box(self, Vector3(0.012, 0.36, 0.16), Vector3(W / 2 - 0.255, 1.0, dz - 0.85), Color(0.95, 0.75, 0.1), false)              # façade jaune
 	# barres de maintien
 	for bz in [-3.0, -1.0, 1.5, 3.5]:
 		for bx in [-0.32, 0.32]:
@@ -377,13 +393,15 @@ func _build_bus() -> void:
 		for sx in [-1.0, -0.57, 0.57, 1.0]:
 			if sx > 0 and abs(sz - DOOR_Z) < 0.9:
 				continue
-			Build.box(self, Vector3(0.44, 0.08, 0.45), Vector3(sx, 0.45, sz), Color(0.15, 0.25, 0.55))
-			Build.box(self, Vector3(0.44, 0.55, 0.08), Vector3(sx, 0.75, sz + 0.24), Color(0.15, 0.25, 0.55))
+			_seat(sx, sz)
 			Build.box(self, Vector3(0.06, 0.45, 0.06), Vector3(sx, 0.2, sz), Color(0.3, 0.3, 0.3), false)
 			seats.append({"pos": Vector3(sx, 0, sz - 0.02), "p": null, "standing": false})
 		sz += 1.0
-	# places debout au fond du bus (utilisées seulement quand toutes les places assises sont prises)
-	for spot in [Vector2(0, 4.95), Vector2(-0.4, 5.2), Vector2(0.4, 5.2), Vector2(0, 5.6), Vector2(-0.6, 5.65), Vector2(0.6, 5.65)]:
+	# banquette arrière : 5 places assises
+	_rear_bench(L)
+	# places debout (seulement quand toutes les places assises sont prises) :
+	# devant la banquette arrière, dans l'allée et sur la plateforme de la porte du milieu
+	for spot in [Vector2(-0.55, 4.98), Vector2(0, 4.98), Vector2(0.55, 4.98), Vector2(0, 3.95), Vector2(0.8, -0.45), Vector2(0.8, 0.45)]:
 		seats.append({"pos": Vector3(spot.x, 0, spot.y), "p": null, "standing": true})
 	# chauffeur
 	var drv_data := {"id": "driver", "special": false, "name": "Gérard (chauffeur)", "body": Color(0.2, 0.3, 0.5),
@@ -396,8 +414,8 @@ func _build_bus() -> void:
 	Build.box(self, Vector3(0.5, 0.08, 0.5), Vector3(-0.75, 0.45, -5.2), Color(0.1, 0.1, 0.1), false)
 	Build.cylinder(self, 0.2, 0.04, Vector3(-0.75, 1.05, -5.6), Color(0.1, 0.1, 0.1)).rotation_degrees.x = 60
 	# afficheur de ligne
-	Build.box(self, Vector3(1.6, 0.25, 0.08), Vector3(0.3, 2.2, -5.45), Color(0.05, 0.05, 0.05), false)
-	display = Build.label3d(self, "", Vector3(0.3, 2.2, -5.4), 26, Color(1, 0.6, 0.1))
+	Build.box(self, Vector3(1.6, 0.25, 0.08), Vector3(0.3, 2.03, -5.45), Color(0.05, 0.05, 0.05), false)
+	display = Build.label3d(self, "", Vector3(0.3, 2.03, -5.4), 26, Color(1, 0.6, 0.1))
 	display.pixel_size = 0.0025
 	# éclairage intérieur
 	for lz in [-3.5, 0, 3.5]:
@@ -418,33 +436,48 @@ func _decorate_bus() -> void:
 	# boutons « arrêt demandé » rouges sur les barres verticales
 	for bz in [-3.0, -1.0, 1.5, 3.5]:
 		for bx in [-0.32, 0.32]:
-			var btn := Build.box(self, Vector3(0.07, 0.1, 0.07), Vector3(bx, 1.25, bz), Color(0.85, 0.1, 0.1), false)
-			_glow(btn, Color(1, 0.15, 0.1), 0.6)
+			var btn := Build.cylinder(self, 0.036, 0.07, Vector3(bx, 1.3, bz), Color(0.85, 0.1, 0.1))
+			_glow(btn, Color(1, 0.15, 0.1), 0.5)
+			var cap := Build.cylinder(self, 0.02, 0.012, Vector3(bx + (0.03 if bx < 0 else -0.03), 1.3, bz), Color(1, 0.9, 0.9))
+			cap.rotation_degrees.z = 90
+			_glow(cap, Color(1, 0.6, 0.6), 0.8)
 	# bandeaux LED au plafond
 	for x in [-0.75, 0.75]:
 		var led := Build.box(self, Vector3(0.12, 0.02, L - 1.5), Vector3(x, H - 0.01, 0.3), Color(1, 1, 0.97), false)
 		_glow(led, Color(0.95, 0.97, 1), 1.6)
 	# panneaux publicitaires au-dessus des vitres
-	var ads := [Color(0.9, 0.35, 0.3), Color(0.25, 0.55, 0.85), Color(0.95, 0.75, 0.2), Color(0.35, 0.7, 0.4)]
+	# [fond, couleur du texte, titre, slogan, couleur du logo]
+	var ads := [
+		[Color(0.55, 0.3, 0.18), Color(1, 0.95, 0.85), "CAFÉ BRÛLOT", "Le petit noir qui réveille la ville", Color(0.95, 0.8, 0.5)],
+		[Color(0.95, 0.85, 0.2), Color(0.12, 0.12, 0.15), "VALIDEZ VOTRE TITRE !", "À chaque montée, même en correspondance", Color(0.1, 0.4, 0.8)],
+		[Color(0.2, 0.45, 0.8), Color(1, 1, 1), "ASSURANCES TRANQUILLES", "On s'occupe de tout. Vraiment.", Color(1, 1, 1)],
+		[Color(0.92, 0.92, 0.9), Color(0.15, 0.25, 0.55), "CÉDEZ VOTRE PLACE", "aux personnes âgées, enceintes ou à mobilité réduite", Color(0.15, 0.25, 0.55)],
+		[Color(0.2, 0.6, 0.35), Color(1, 1, 1), "PIZZA DEL PONTE", "Livrée chaude en 30 min ou offerte", Color(0.95, 0.3, 0.2)],
+		[Color(0.85, 0.2, 0.2), Color(1, 1, 1), "AMENDE : 50 €", "Voyager sans titre valable vous coûte cher", Color(1, 1, 1)],
+		[Color(0.12, 0.12, 0.16), Color(1, 0.75, 0.2), "CINÉ ÉTOILE", "Nouvelle salle 4DX — ouverture samedi", Color(1, 0.75, 0.2)],
+		[Color(0.3, 0.7, 0.85), Color(1, 1, 1), "APPLI RÉSEAU", "Vos tickets et horaires dans la poche", Color(1, 1, 1)],
+	]
 	var i := 0
 	for side in [-1, 1]:
 		for az in [-3.0, -0.5, 2.5, 4.5]:
 			if side > 0 and abs(az - DOOR_Z) < 1.0:
 				continue
-			var ad := Build.box(self, Vector3(0.02, 0.3, 0.9), Vector3(side * (W / 2 - 0.07), H - 0.24, az), ads[i % ads.size()], false)
-			_glow(ad, ads[i % ads.size()], 0.25)
+			var ad: Array = ads[i % ads.size()]
+			_ad_panel(Vector3(side * (W / 2 - 0.07), H - 0.24, az), side, ad)
 			i += 1
 	# bandes jaunes de sécurité au sol devant les portes
 	for dz in [-4.9, DOOR_Z]:
 		Build.box(self, Vector3(0.8, 0.012, 1.3), Vector3(W / 2 - 0.45, 0.006, dz), Color(0.95, 0.8, 0.1), false)
 	# revêtement de sol : petites pastilles antidérapantes
-	_rough(Build.box(self, Vector3(W - 0.2, 0.008, L - 0.4), Vector3(0, 0.004, 0), Color(0.3, 0.31, 0.34), false), 1.0)
+	_tiles(Build.box(self, Vector3(W - 0.2, 0.008, L - 0.4), Vector3(0, 0.004, 0), Color(0.3, 0.31, 0.34), false),
+		Vector2(0.05, 0.05), 0.5, 0.012, Color(0.32, 0.33, 0.36), Color(0.22, 0.22, 0.24), 0.05, 0.3, 0.95, false, true)
 	# vitre arrière
 	var rear := Build.box(self, Vector3(W - 0.4, 0.8, 0.04), Vector3(0, 1.6, L / 2 - 0.06), Color(0.7, 0.85, 0.95, 0.2), false)
 	_metal(rear, 0.05, Color(0.7, 0.85, 0.95), 0.2)
 	# tableau de bord lumineux
 	var dash := Build.box(self, Vector3(0.6, 0.25, 0.02), Vector3(-0.75, 0.95, -5.82), Color(0.1, 0.3, 0.5), false)
 	_glow(dash, Color(0.3, 0.7, 1.0), 0.8)
+	_decorate_bus_hd()
 
 
 func _setup_rendering() -> void:
@@ -477,9 +510,9 @@ func _setup_rendering() -> void:
 		env.adjustment_saturation = 1.1
 	# soleil avec ombres (les bâtiments et lampadaires projettent leur ombre dans le bus)
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-48, -35, 0)
-	sun.light_color = Color(1, 0.95, 0.85)
-	sun.light_energy = 1.1
+	sun.rotation_degrees = Vector3(-40, -55, 0)
+	sun.light_color = Color(1, 0.93, 0.8)
+	sun.light_energy = 1.2
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 60.0 if QUALITY_HIGH else 30.0
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if QUALITY_HIGH else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
@@ -647,6 +680,9 @@ func _process(delta: float) -> void:
 				_finish()
 	# défilement du décor
 	var dz := speed * delta
+	_scroll_z += dz
+	for m in _scroll_mats:
+		m.set_shader_parameter("scroll_z", _scroll_z)
 	for n in movers:
 		if not is_instance_valid(n):
 			continue
@@ -657,6 +693,7 @@ func _process(delta: float) -> void:
 			else:
 				n.position.z -= WRAP_LEN
 	_update_texts()
+	_update_route_map()
 	_update_chat(delta)
 
 
@@ -863,7 +900,8 @@ func _update_chat(delta: float) -> void:
 			_chat_t = CHAT_INTERVAL
 			_chat_turn += 1
 			if _chat_turn % 2 == 1:
-				_chat_old_label.text = OLDMAN_LINES[rng.randi() % OLDMAN_LINES.size()]
+				var talk: Array = TALKER_LINES.get(str(_chat_old.data.get("id", "")), OLDMAN_LINES)
+				_chat_old_label.text = talk[rng.randi() % talk.size()]
 				_chat_partner_label.text = ""
 			else:
 				var pid := str(_chat_partner.data.get("id", ""))
@@ -873,10 +911,10 @@ func _update_chat(delta: float) -> void:
 		return
 	# pas de conversation : Pépé est-il assis à côté d'un spécial ?
 	for old in passengers:
-		if str(old.data.get("id", "")) != "oldman" or not _is_settled(old):
+		if not str(old.data.get("id", "")) in CHATTY_IDS or not _is_settled(old):
 			continue
 		for other in passengers:
-			if _can_chat_with(other) and _is_settled(other) and _are_neighbors(old.seat_index, other.seat_index):
+			if other != old and _can_chat_with(other) and _is_settled(other) and _are_neighbors(old.seat_index, other.seat_index):
 				_start_chat(old, other)
 				return
 
@@ -910,3 +948,259 @@ func _stop_chat() -> void:
 	_chat_partner = null
 	_chat_old_label = null
 	_chat_partner_label = null
+
+
+# ------------------------------------------------------------------ intérieur « HD » (2e passe)
+
+var _route_dots: Array = []          # pastilles du plan de ligne (une par arrêt)
+var _stop_sign: Node = null          # bandeau « ARRÊT DEMANDÉ »
+var _scroll_mats: Array[ShaderMaterial] = []
+var _scroll_z := 0.0
+
+
+## Siège en tissu moucheté : assise rembourrée, dossier, coque plastique, poignée chromée.
+func _seat(sx: float, sz: float) -> void:
+	var fabric := Color(0.13, 0.22, 0.5)
+	var shell := Color(0.25, 0.27, 0.3)
+	# coque plastique
+	_rough(Build.box(self, Vector3(0.46, 0.06, 0.47), Vector3(sx, 0.41, sz), shell), 0.4)
+	_rough(Build.box(self, Vector3(0.46, 0.62, 0.05), Vector3(sx, 0.76, sz + 0.27), shell, false), 0.4)
+	# coussins en tissu
+	var cushion := Build.box(self, Vector3(0.42, 0.07, 0.42), Vector3(sx, 0.475, sz - 0.01), fabric)
+	_tiles(cushion, Vector2(0.012, 0.012), 0.5, 0.0, fabric, fabric, 0.25, 0.7, 1.0, false, true)
+	var back := Build.box(self, Vector3(0.42, 0.52, 0.06), Vector3(sx, 0.78, sz + 0.235), fabric, false)
+	_tiles(back, Vector2(0.012, 0.012), 0.5, 0.0, fabric, fabric, 0.25, 0.7, 1.0, false, true)
+	# appui-tête gris + poignée chromée au dos
+	_headrest(Vector3(sx, 1.08, sz + 0.25), 0.3)
+	_glow(Build.box(self, Vector3(0.42, 0.02, 0.065), Vector3(sx, 1.03, sz + 0.235), line.color, false), line.color, 0.15)
+	var grip := Build.cylinder(self, 0.014, 0.32, Vector3(sx, 1.0, sz + 0.31), Color(0.85, 0.86, 0.88))
+	grip.rotation_degrees.z = 90
+	_metal(grip, 0.2)
+
+
+func _decorate_bus_hd() -> void:
+	var L := 12.0; var W := 2.5; var H := 2.45
+	var rubber := Color(0.06, 0.06, 0.07)
+	# joints caoutchouc autour des vitres
+	for side in [-1, 1]:
+		var x: float = side * (W / 2 - 0.03)
+		Build.box(self, Vector3(0.03, 0.04, L), Vector3(x, 0.95, 0), rubber, false)
+		Build.box(self, Vector3(0.03, 0.04, L), Vector3(x, 2.0, 0), rubber, false)
+	# cloison vitrée derrière le chauffeur
+	var part := Build.box(self, Vector3(0.95, 1.2, 0.03), Vector3(-0.78, 1.25, -4.65), Color(0.75, 0.88, 0.95, 0.2))
+	_metal(part, 0.05, Color(0.75, 0.88, 0.95, 0.2), 0.2)
+	_metal(Build.box(self, Vector3(0.95, 0.65, 0.04), Vector3(-0.78, 0.33, -4.65), Color(0.28, 0.3, 0.33)), 0.5, null, 0.3)
+	# valideurs : écran vert et lecteur de carte sur chaque composteur
+	for dz in [-4.9, DOOR_Z]:
+		_glow(Build.box(self, Vector3(0.01, 0.1, 0.12), Vector3(W / 2 - 0.245, 1.08, dz - 0.85), Color(0.2, 0.9, 0.4), false), Color(0.25, 1, 0.45), 1.2)
+		_glow(Build.box(self, Vector3(0.01, 0.08, 0.08), Vector3(W / 2 - 0.245, 0.92, dz - 0.85), Color(0.9, 0.9, 0.9), false), Color(1, 1, 1), 0.4)
+	# « SORTIE » vert au-dessus des portes
+	for dz in [-4.9, DOOR_Z]:
+		_glow(Build.box(self, Vector3(0.03, 0.14, 0.5), Vector3(W / 2 - 0.08, 2.15, dz), Color(0.1, 0.6, 0.25), false), Color(0.15, 0.85, 0.35), 1.0)
+		var sl := Build.label3d(self, "SORTIE", Vector3(W / 2 - 0.1, 2.15, dz), 22, Color.WHITE)
+		sl.rotation_degrees.y = -90
+		sl.pixel_size = 0.003
+	# bandeau « ARRÊT DEMANDÉ » (s'allume quand le bus freine pour un arrêt)
+	_stop_sign = Build.box(self, Vector3(0.9, 0.11, 0.03), Vector3(0.3, 1.83, -5.42), Color(0.25, 0.05, 0.05), false)
+	_glow(_stop_sign, Color(0.25, 0.05, 0.05), 0.05)
+	var asl := Build.label3d(self, "ARRÊT DEMANDÉ", Vector3(0.3, 1.83, -5.4), 22, Color(1, 0.85, 0.85))
+	asl.pixel_size = 0.0028
+	# plan de ligne lumineux face aux voyageurs (arrêt suivant en orange)
+	_build_route_map(Vector3(0, H - 0.15, -4.55), W - 0.5)
+	# poignées suspendues aux barres horizontales
+	for x in [-0.55, 0.55]:
+		var hz := -3.6
+		while hz < 5.0:
+			var strap := Build.box(self, Vector3(0.008, 0.16, 0.025), Vector3(x, H - 0.34, hz), Color(0.1, 0.1, 0.12), false)
+			_rough(strap, 0.7)
+			var ring := MeshInstance3D.new()
+			var tm := TorusMesh.new()
+			tm.inner_radius = 0.035
+			tm.outer_radius = 0.048
+			ring.mesh = tm
+			ring.material_override = Build.mat(Color(0.95, 0.8, 0.1), 0.35)
+			ring.position = Vector3(x, H - 0.46, hz)
+			ring.rotation_degrees.z = 90          # anneau vertical, dans l'axe de l'allée
+			add_child(ring)
+			hz += 0.8
+	# bouches d'aération au plafond
+	for vz in [-3.0, 0.5, 3.8]:
+		_rough(Build.box(self, Vector3(0.5, 0.02, 0.18), Vector3(0, H - 0.005, vz), Color(0.75, 0.76, 0.78), false), 0.5)
+		for k in 4:
+			Build.box(self, Vector3(0.44, 0.022, 0.015), Vector3(0, H - 0.008, vz - 0.06 + k * 0.04), Color(0.3, 0.3, 0.32), false)
+
+
+func _build_route_map(at: Vector3, width: float) -> void:
+	_metal(Build.box(self, Vector3(width + 0.1, 0.26, 0.05), at, Color(0.05, 0.05, 0.06), false), 0.4)
+	_glow(Build.box(self, Vector3(width - 0.1, 0.025, 0.01), at + Vector3(0, 0.0, 0.03), line.color, false), line.color, 0.8)
+	var n: int = line.stops.size()
+	for i in n:
+		var x := -width / 2 + 0.1 + (width - 0.2) * (float(i) / maxf(n - 1, 1))
+		var dot := Build.box(self, Vector3(0.045, 0.045, 0.015), at + Vector3(x, 0.0, 0.035), Color.WHITE, false)
+		_glow(dot, Color.WHITE, 0.6)
+		_route_dots.append(dot)
+		var lab := Build.label3d(self, stop_name(i), at + Vector3(x, -0.075 if i % 2 == 0 else 0.075, 0.04), 15, Color(0.95, 0.95, 0.95))
+		lab.pixel_size = 0.0022
+
+
+## Met à jour le plan de ligne et le bandeau « ARRÊT DEMANDÉ ».
+func _update_route_map() -> void:
+	var next_i: int = stop_index if state in ["stop", "depart", "terminus", "fin"] else stop_index + 1
+	var blink := fmod(Time.get_ticks_msec() / 400.0, 2.0) < 1.0
+	for i in _route_dots.size():
+		var col := Color(0.35, 0.35, 0.38)            # arrêts passés
+		var e := 0.2
+		if i == next_i:
+			col = Color(1, 0.6, 0.1)
+			e = 2.0 if blink else 0.8
+		elif i > next_i:
+			col = Color(1, 1, 1)
+			e = 0.6
+		_set_glow(_route_dots[i], col, e)
+	if _stop_sign:
+		var on: bool = state == "brake" or (state == "drive" and state_t < 6.0)
+		_set_glow(_stop_sign, Color(0.9, 0.1, 0.1) if on else Color(0.25, 0.05, 0.05), 1.6 if on else 0.05)
+
+
+## Change la lueur d'un objet déjà passé par _glow (sans recréer de matériau à chaque image).
+func _set_glow(n: Node, col: Color, energy: float) -> void:
+	var m := _mesh_of(n)
+	if m == null or not (m.material_override is StandardMaterial3D):
+		return
+	var mat: StandardMaterial3D = m.material_override
+	mat.albedo_color = col
+	mat.emission_enabled = true
+	mat.emission = col
+	mat.emission_energy_multiplier = energy
+
+
+# ------------------------------------------------------------------ matériau procédural (tissu, dalles, briques, asphalte)
+
+const TILE_SHADER := """
+shader_type spatial;
+uniform vec4 base_color : source_color = vec4(0.6, 0.6, 0.6, 1.0);
+uniform vec4 grout_color : source_color = vec4(0.4, 0.4, 0.4, 1.0);
+uniform vec2 tile_size = vec2(0.5, 0.5);
+uniform float stagger = 0.0;
+uniform float grout = 0.01;
+uniform float variation = 0.1;
+uniform float speckle = 0.2;
+uniform float rough = 0.85;
+uniform bool local_space = false;
+uniform float scroll_z = 0.0;
+varying vec3 wpos;
+varying vec3 wnrm;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+}
+void vertex() {
+	if (local_space) {
+		wpos = VERTEX;
+		wnrm = NORMAL;
+	} else {
+		wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+		wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	}
+	wpos.z -= scroll_z;
+}
+void fragment() {
+	vec3 n = abs(wnrm);
+	vec2 uv = n.y > 0.6 ? wpos.xz : (n.x > n.z ? wpos.zy : wpos.xy);
+	vec2 b = uv / tile_size;
+	b.x += mod(floor(b.y), 2.0) * stagger;
+	vec2 id = floor(b);
+	vec2 f = fract(b);
+	vec2 g = vec2(grout) / tile_size;
+	float inside = step(g.x, f.x) * step(g.y, f.y);
+	float v = hash(id);
+	float sp = noise(uv * 40.0) * 0.6 + noise(uv * 7.0) * 0.4;
+	vec3 col = base_color.rgb * (1.0 - variation * 0.5 + variation * v) * (1.0 - speckle * 0.5 + speckle * sp);
+	ALBEDO = mix(grout_color.rgb, col, inside);
+	ROUGHNESS = mix(1.0, rough, inside) - sp * 0.05;
+	AO = mix(0.55, 1.0, inside);
+	AO_LIGHT_AFFECT = 0.4;
+}
+"""
+
+var _tile_shader: Shader
+
+
+## scroll : la texture défile avec la vitesse du bus (sols fixes) ; local : suit l'objet (décor qui défile, intérieur).
+func _tiles(n: Node, size: Vector2, stagger: float, grout: float, col: Color, grout_col: Color,
+		variation: float, speckle: float, rough: float, scroll := false, local := false) -> Node:
+	if _tile_shader == null:
+		_tile_shader = Shader.new()
+		_tile_shader.code = TILE_SHADER
+	var m := _mesh_of(n)
+	if m == null:
+		return n
+	var mat := ShaderMaterial.new()
+	mat.shader = _tile_shader
+	mat.set_shader_parameter("base_color", col)
+	mat.set_shader_parameter("grout_color", grout_col)
+	mat.set_shader_parameter("tile_size", size)
+	mat.set_shader_parameter("stagger", stagger)
+	mat.set_shader_parameter("grout", grout)
+	mat.set_shader_parameter("variation", variation)
+	mat.set_shader_parameter("speckle", speckle)
+	mat.set_shader_parameter("rough", rough)
+	mat.set_shader_parameter("local_space", local)
+	m.material_override = mat
+	if scroll:
+		_scroll_mats.append(mat)
+	return n
+
+
+# ------------------------------------------------------------------ pubs, banquette arrière, appuis-tête
+
+## Panneau publicitaire au-dessus des vitres, tourné vers l'allée. ad = [fond, texte, titre, slogan, logo]
+func _ad_panel(at: Vector3, side: int, ad: Array) -> void:
+	var bg := Build.box(self, Vector3(0.02, 0.3, 0.9), at, ad[0], false)
+	_glow(bg, ad[0], 0.22)
+	Build.box(self, Vector3(0.025, 0.32, 0.92), at + Vector3(side * 0.003, 0, 0), Color(0.75, 0.77, 0.8), false)   # cadre alu
+	var inward := -side * 0.016
+	# logo rond à gauche
+	var logo := Build.cylinder(self, 0.06, 0.01, at + Vector3(inward, 0, -0.33 * -side), ad[4])
+	logo.rotation_degrees.z = 90
+	_glow(logo, ad[4], 0.4)
+	var rot := 90.0 if side < 0 else -90.0
+	var title := Build.label3d(self, ad[2], at + Vector3(inward, 0.055, 0.06 * side), 26, ad[1])
+	title.rotation_degrees.y = rot
+	title.pixel_size = 0.0022
+	title.outline_size = 0
+	var slogan := Build.label3d(self, ad[3], at + Vector3(inward, -0.06, 0.06 * side), 15, ad[1])
+	slogan.rotation_degrees.y = rot
+	slogan.pixel_size = 0.0018
+	slogan.outline_size = 0
+	slogan.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	slogan.width = 330
+
+
+## Banquette du fond : un seul coussin sur toute la largeur, 5 places assises.
+func _rear_bench(L: float) -> void:
+	var fabric := Color(0.13, 0.22, 0.5)
+	var z := L / 2 - 0.47
+	_rough(Build.box(self, Vector3(2.3, 0.42, 0.5), Vector3(0, 0.21, z), Color(0.25, 0.27, 0.3)), 0.4)          # coffre
+	var cushion := Build.box(self, Vector3(2.26, 0.08, 0.46), Vector3(0, 0.46, z - 0.01), fabric)
+	_tiles(cushion, Vector2(0.012, 0.012), 0.5, 0.0, fabric, fabric, 0.25, 0.7, 1.0, false, true)
+	var back := Build.box(self, Vector3(2.26, 0.6, 0.08), Vector3(0, 0.8, z + 0.25), fabric, false)
+	_tiles(back, Vector2(0.012, 0.012), 0.5, 0.0, fabric, fabric, 0.25, 0.7, 1.0, false, true)
+	_glow(Build.box(self, Vector3(2.26, 0.02, 0.085), Vector3(0, 1.1, z + 0.25), line.color, false), line.color, 0.15)
+	for x in [-0.9, -0.45, 0.0, 0.45, 0.9]:
+		_headrest(Vector3(x, 1.2, z + 0.27), 0.28)
+		seats.append({"pos": Vector3(x, 0, z - 0.02), "p": null, "standing": false})
+
+
+## Appui-tête arrondi (capsule couchée) gris.
+func _headrest(at: Vector3, width: float) -> void:
+	var hr := MeshInstance3D.new()
+	var cm := CapsuleMesh.new()
+	cm.radius = 0.055
+	cm.height = width
+	hr.mesh = cm
+	hr.material_override = Build.mat(Color(0.55, 0.56, 0.58), 0.75)
+	hr.position = at
+	hr.rotation_degrees.z = 90
+	add_child(hr)

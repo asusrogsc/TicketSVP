@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://tovxiukuvc3s"
-path.s3tc="res://.godot/imported/Mzelle_15.png-d573b38f5d760e3ad00cfeb3ef175f3c.s3tc.ctex"
+uid="uid://dlx5bej2avw0w"
+path.s3tc="res://.godot/imported/mzelle_15.png-6b99d8e449afb7271ffa061806354f5f.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -14,8 +14,8 @@ generator_parameters={
 
 [deps]
 
-source_file="res://models/Mzelle_15.png"
-dest_files=["res://.godot/imported/Mzelle_15.png-d573b38f5d760e3ad00cfeb3ef175f3c.s3tc.ctex"]
+source_file="res://models/mzelle_15.png"
+dest_files=["res://.godot/imported/mzelle_15.png-6b99d8e449afb7271ffa061806354f5f.s3tc.ctex"]
 
 [params]
 

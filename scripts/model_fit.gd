@@ -13,6 +13,8 @@ var k := 1.0              # échelle appliquée
 var box: AABB             # boîte englobante dans l'espace du modèle
 var hip := Vector3.ZERO   # articulation de la hanche (espace du modèle)
 var skel: Skeleton3D
+var _mzelle_rig := false
+var _mzelle_animator: AnimationPlayer
 var _rel_skel: Transform3D
 var _bones := {}
 var _static_meshes := []  # [{mi, rest: ArrayMesh, rel: Transform3D}]
@@ -30,9 +32,14 @@ func _init(path: String, parent: Node3D, height := 0.0) -> void:
 	var sks := root.find_children("*", "Skeleton3D", true, false)
 	skel = sks[0] if sks.size() > 0 else null
 	if skel:
+		_mzelle_rig = skel.find_bone("MzelleRoot") >= 0
+		if _mzelle_rig:
+			var animators := root.find_children("*", "AnimationPlayer", true, false)
+			if not animators.is_empty():
+				_mzelle_animator = animators[0] as AnimationPlayer
 		_rel_skel = root.global_transform.affine_inverse() * skel.global_transform
 		_find_bones()
-		box = _skinned_box()
+		box = _mzelle_rest_box() if _mzelle_rig else _skinned_box()
 		hip = _rel_skel * skel.get_bone_global_rest(_bones.hip).origin if _bones.has("hip") else box.get_center()
 	else:
 		for mi in root.find_children("*", "MeshInstance3D", true, false):
@@ -125,6 +132,16 @@ func _turn(b: int, axis_model: Vector3, deg: float) -> void:
 
 
 func _pose_skeleton(seated: bool) -> void:
+	if _mzelle_rig and _mzelle_animator != null:
+		var target := "Mzelle_Seated" if seated else "Mzelle_Standing"
+		for animation_name in _mzelle_animator.get_animation_list():
+			if str(animation_name).ends_with(target):
+				_mzelle_animator.play(animation_name)
+				_mzelle_animator.advance(0.0)
+				_mzelle_animator.seek(0.0, true)
+				_mzelle_animator.pause()
+				return
+		push_warning("Mzelle : animation de pose introuvable : " + target)
 	skel.reset_bone_poses()
 	var B: Dictionary = _bones
 	var arms_down := 72.0
@@ -320,4 +337,19 @@ func _relax_marie(p: Vector3, P: Dictionary, current: Transform3D) -> Transform3
 			var elbow := drop * elbow_rest
 			result = _rot_about(elbow, Vector3(1, 0, 0), -MARIE_FOREARM_BEND * forearm) * result
 			result.origin.x -= side * 0.025 * H * forearm
+	return result
+
+
+## Mesure du maillage au repos : les os ne couvrent ni cheveux ni semelles.
+func _mzelle_rest_box() -> AABB:
+	var result := AABB()
+	var first := true
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		var relative := root.global_transform.affine_inverse() * mi.global_transform
+		var bounds: AABB = relative * mi.mesh.get_aabb()
+		result = bounds if first else result.merge(bounds)
+		first = false
 	return result
