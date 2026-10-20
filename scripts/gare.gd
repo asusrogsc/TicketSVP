@@ -37,6 +37,7 @@ func _ready() -> void:
 	_setup_rendering()
 	_build_station()
 	_build_backdrop()
+	_build_station_extras()
 	_build_chef()
 	_build_parked_bus()
 	_spawn_waiting()
@@ -80,14 +81,15 @@ func _build_station() -> void:
 		Build.box(self, Vector3(0.15, 0.01, 3), Vector3(10.6, -0.295, z), Color(0.95, 0.95, 0.9), false)
 	Build.box(self, Vector3(0.15, 0.01, 18), Vector3(4.6, -0.295, 0), Color(0.95, 0.8, 0.1), false)
 	var bus_mark := Build.label3d(self, "BUS", Vector3(7.6, -0.29, -9.5), 200, Color(0.95, 0.95, 0.9))
-	bus_mark.rotation_degrees = Vector3(-90, 0, 0)
+	bus_mark.rotation_degrees = Vector3(-90, -90, 0)     # lisible depuis le quai
 	bus_mark.pixel_size = 0.008
 
 	_build_station_building()
 
 	# marquise : toit, sous-face claire, chéneau, poteaux sur platines
 	_metal(Build.box(self, Vector3(8.4, 0.12, 32), Vector3(-0.6, 3.78, 0), Color(0.2, 0.24, 0.32), false), 0.5, null, 0.6)
-	_rough(Build.box(self, Vector3(8.2, 0.03, 31.8), Vector3(-0.6, 3.705, 0), Color(0.86, 0.87, 0.88), false), 0.6)
+	_tiles(Build.box(self, Vector3(8.2, 0.03, 31.8), Vector3(-0.6, 3.705, 0), Color.WHITE, false),
+		Vector2(0.12, 2.4), 0.5, 0.008, Color(0.72, 0.52, 0.32), Color(0.35, 0.24, 0.14), 0.15, 0.35, 0.6)   # lames de bois
 	_metal(Build.box(self, Vector3(0.18, 0.35, 32.2), Vector3(3.55, 3.62, 0), steel, false), 0.4)
 	for z in range(-15, 16, 6):
 		for x in [-3.6, 2.9]:
@@ -145,8 +147,7 @@ func _build_station() -> void:
 		Vector2(0.3, 0.3), 0.0, 0.006, Color(0.92, 0.88, 0.78), Color(0.8, 0.76, 0.68), 0.04, 0.15, 0.85)
 	_metal(Build.box(self, Vector3(2.4, 0.1, 3.0), Vector3(-3.3, 2.65, 12.5), Color(0.2, 0.24, 0.32), false), 0.45, null, 0.6)
 	Build.box(self, Vector3(0.06, 1.15, 1.75), Vector3(-2.39, 1.5, 12.5), Color(0.9, 0.9, 0.88), false)   # cadre
-	var win := Build.box(self, Vector3(0.05, 1.0, 1.6), Vector3(-2.37, 1.5, 12.5), Color(1, 0.9, 0.7), false)
-	_glow(win, Color(1, 0.88, 0.65), 0.9)
+	_shop_window(Vector3(-2.37, 1.5, 12.5), Vector2(1.6, 1.0), 1, "bureau")
 	_rough(Build.box(self, Vector3(0.3, 0.05, 1.7), Vector3(-2.3, 0.97, 12.5), Color(0.5, 0.33, 0.18), false), 0.5)  # comptoir
 	var ks := Build.label3d(self, "CHEF DE GARE", Vector3(-2.36, 2.3, 12.5), 44, Color(0.12, 0.18, 0.45))
 	ks.rotation_degrees.y = 90
@@ -620,7 +621,8 @@ func _setup_rendering() -> void:
 		var env: Environment = (c as WorldEnvironment).environment
 		if env == null:
 			continue
-		env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+		env.tonemap_mode = Environment.TONE_MAPPER_AGX
+		env.tonemap_exposure = 1.1
 		env.tonemap_white = 6.0
 		env.ssao_enabled = true
 		env.ssao_radius = 0.8
@@ -768,3 +770,211 @@ func _tiles(n: Node, size: Vector2, stagger: float, grout: float, col: Color, gr
 	mat.set_shader_parameter("rough", rough)
 	m.material_override = mat
 	return n
+
+
+# ------------------------------------------------------------------ 2e passe HD : vie et détails
+
+var _pigeons: Array[Node3D] = []
+
+
+func _build_station_extras() -> void:
+	var steel := Color(0.24, 0.27, 0.32)
+	# affiches encadrées entre les fenêtres du rez-de-chaussée
+	var posters := [
+		[Color(0.2, 0.45, 0.8), "VISITEZ LA CÔTE", Color.WHITE],
+		[Color(0.95, 0.8, 0.2), "CONCERT — PARC DES CERISIERS", Color(0.15, 0.15, 0.2)],
+		[Color(0.85, 0.25, 0.2), "SOLDES D'HIVER -50%", Color.WHITE],
+		[Color(0.2, 0.6, 0.35), "MARCHÉ BIO LE SAMEDI", Color.WHITE],
+	]
+	var k := 0
+	for z in [-11.0, -7.0, 5.0, 9.0]:      # entre les fenêtres
+		var pst: Array = posters[k % posters.size()]
+		Build.box(self, Vector3(0.04, 1.3, 0.95), Vector3(-4.46, 2.0, z), Color(0.15, 0.15, 0.17), false)
+		_glow(Build.box(self, Vector3(0.02, 1.2, 0.85), Vector3(-4.43, 2.0, z), pst[0], false), pst[0], 0.25)
+		var t := Build.label3d(self, pst[1], Vector3(-4.415, 2.35, z), 34, pst[2])
+		t.rotation_degrees.y = 90
+		t.pixel_size = 0.0022
+		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		t.width = 340
+		t.outline_size = 0
+		k += 1
+
+	# suspensions de fleurs aux poteaux de la marquise (côté voie)
+	for z in range(-15, 16, 6):
+		var basket := Build.cylinder(self, 0.22, 0.2, Vector3(2.9, 2.6, z), Color(0.35, 0.25, 0.15))
+		_rough(basket, 0.9)
+		_metal(Build.cylinder(self, 0.008, 0.5, Vector3(2.9, 2.95, z), steel), 0.4)
+		for f in 7:
+			var fl := MeshInstance3D.new()
+			var sm := SphereMesh.new()
+			sm.radius = rng.randf_range(0.07, 0.12)
+			sm.height = sm.radius * 1.6
+			fl.mesh = sm
+			var c: Color = [Color(0.85, 0.2, 0.35), Color(0.95, 0.75, 0.2), Color(0.95, 0.95, 0.95), Color(0.3, 0.55, 0.25)][f % 4]
+			fl.material_override = Build.mat(c, 0.9)
+			fl.position = Vector3(2.9 + rng.randf_range(-0.18, 0.18), 2.72 + rng.randf_range(-0.05, 0.08), z + rng.randf_range(-0.18, 0.18))
+			add_child(fl)
+		for f in 3:   # feuillage qui retombe
+			var hang := Build.box(self, Vector3(0.04, rng.randf_range(0.25, 0.45), 0.08), Vector3(2.9 + rng.randf_range(-0.2, 0.2), 2.4, z + rng.randf_range(-0.2, 0.2)), Color(0.25, 0.5, 0.22), false)
+			_rough(hang, 1.0)
+
+	# petite terrasse de café au bout du quai
+	var cafe_z := 17.5
+	_tiles(Build.box(self, Vector3(0.05, 2.4, 3.2), Vector3(-4.44, 1.2, cafe_z), Color.WHITE, false),
+		Vector2(0.4, 2.4), 0.0, 0.01, Color(0.15, 0.3, 0.22), Color(0.1, 0.2, 0.15), 0.05, 0.2, 0.5)
+	var cafe := Build.label3d(self, "CAFÉ DU TERMINUS", Vector3(-4.4, 2.75, cafe_z), 48, Color(1, 0.9, 0.6))
+	cafe.rotation_degrees.y = 90
+	cafe.pixel_size = 0.004
+	_shop_window(Vector3(-4.39, 1.25, cafe_z), Vector2(1.8, 1.4), 1, "cafe")
+	# ardoise du menu + néon « OUVERT »
+	_rough(Build.box(self, Vector3(0.25, 0.9, 0.55), Vector3(-3.9, 0.45, cafe_z - 1.25), Color(0.12, 0.12, 0.12)), 0.9)
+	var menu_l := Build.label3d(self, "MENU\nCafé 1,80 €\nCroissant 1,20 €\nChocolat 2,50 €", Vector3(-3.77, 0.55, cafe_z - 1.25), 22, Color(0.95, 0.95, 0.9))
+	menu_l.rotation_degrees.y = 90
+	menu_l.pixel_size = 0.003
+	menu_l.outline_size = 0
+	var neon := Build.label3d(self, "OUVERT", Vector3(-4.38, 1.95, cafe_z + 0.55), 40, Color(1, 0.35, 0.45))
+	neon.rotation_degrees.y = 90
+	neon.pixel_size = 0.0035
+	neon.outline_size = 10
+	neon.outline_modulate = Color(1, 0.2, 0.35, 0.6)
+	for tz in [16.2, 18.6]:
+		_cafe_table(Vector3(-1.9, 0, tz))
+
+	# bornes anti-stationnement le long de la voie (bouts du quai)
+	for z in [-19.5, -18.5, 18.5, 19.5]:
+		_metal(Build.cylinder(self, 0.08, 0.9, Vector3(3.7, 0.45, z), Color(0.2, 0.22, 0.25)), 0.4)
+		Build.cylinder(self, 0.082, 0.06, Vector3(3.7, 0.8, z), Color(0.95, 0.95, 0.9))
+
+	# la ville continue aux deux bouts du quai (plus de vide à l'horizon)
+	for end in [-1, 1]:
+		var ez: float = end * 30.0
+		var x := -14.0
+		while x < 14.0:
+			var w := rng.randf_range(6, 10)
+			var h := rng.randf_range(8, 18)
+			var col := Color.from_hsv(rng.randf_range(0.03, 0.12), rng.randf_range(0.12, 0.3), rng.randf_range(0.6, 0.85))
+			if absf(x + w / 2 - 8.0) < 4.5:      # laisser la rue ouverte
+				x += w
+				continue
+			var b := Build.box(self, Vector3(w * 0.95, h, 8), Vector3(x + w / 2, h / 2 - 0.4, ez + end * 4), col, false)
+			_tiles(b, Vector2(0.24, 0.075), 0.5, 0.0, col, col, 0.08, 0.15, 0.9)
+			var fy := 2.0
+			while fy < h - 1.5:
+				var wx := x + 1.0
+				while wx < x + w - 1.0:
+					var g := Build.box(self, Vector3(1.0, 1.2, 0.05), Vector3(wx + 0.5, fy, ez + end * 4 - end * 4.02), Color(0.42, 0.55, 0.7), false)
+					if rng.randf() < 0.2:
+						_glow(g, Color(1, 0.86, 0.6), 0.5)
+					else:
+						_metal(g, 0.06, Color(0.42, 0.55, 0.7), 0.4)
+					wx += 2.0
+				fy += 3.0
+			x += w
+
+	# pigeons qui picorent sur le quai
+	for i in 5:
+		var pg := _pigeon(Vector3(rng.randf_range(-1.5, 2.5), 0, rng.randf_range(-14.0, 14.0)))
+		_pigeons.append(pg)
+
+
+func _cafe_table(at: Vector3) -> void:
+	_metal(Build.cylinder(self, 0.35, 0.03, at + Vector3(0, 0.74, 0), Color(0.92, 0.92, 0.9)), 0.3, null, 0.3)
+	_metal(Build.cylinder(self, 0.03, 0.72, at + Vector3(0, 0.37, 0), Color(0.2, 0.2, 0.22)), 0.4)
+	for a in [0, 120, 240]:   # chaises bistrot
+		var r := deg_to_rad(a)
+		var p := at + Vector3(cos(r), 0, sin(r)) * 0.6
+		_rough(Build.cylinder(self, 0.18, 0.04, p + Vector3(0, 0.45, 0), Color(0.5, 0.3, 0.15)), 0.6)
+		_metal(Build.cylinder(self, 0.015, 0.45, p + Vector3(0, 0.22, 0), Color(0.15, 0.15, 0.16)), 0.4)
+		# dossier rond en rotin tourné vers l'extérieur
+		var back := Build.box(self, Vector3(0.3, 0.3, 0.03), p + Vector3(cos(r), 0, sin(r)) * 0.16 + Vector3(0, 0.66, 0), Color(0.55, 0.36, 0.18), false)
+		back.rotation.y = -r + PI / 2
+		_rough(back, 0.7)
+		for leg in [-1, 1]:
+			var bl := Build.cylinder(self, 0.01, 0.25, p + Vector3(cos(r), 0, sin(r)) * 0.16 + Vector3(-sin(r), 0, cos(r)) * 0.13 * leg + Vector3(0, 0.55, 0), Color(0.15, 0.15, 0.16))
+			_metal(bl, 0.4)
+	# tasse de café
+	Build.cylinder(self, 0.04, 0.07, at + Vector3(0.1, 0.79, 0.05), Color(0.97, 0.97, 0.95))
+	# parasol
+	_metal(Build.cylinder(self, 0.02, 2.2, at + Vector3(0, 1.1, 0), Color(0.85, 0.85, 0.85)), 0.3)
+	var top := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.05
+	cm.bottom_radius = 1.1
+	cm.height = 0.35
+	top.mesh = cm
+	top.material_override = Build.mat(Color(0.75, 0.2, 0.2), 0.9)
+	top.position = at + Vector3(0, 2.1, 0)
+	add_child(top)
+
+
+func _pigeon(at: Vector3) -> Node3D:
+	var root := Node3D.new()
+	root.position = at
+	root.rotation_degrees.y = rng.randf_range(0, 360)
+	add_child(root)
+	var grey := Color(0.45, 0.47, 0.52)
+	var body := MeshInstance3D.new()
+	var bm := SphereMesh.new()
+	bm.radius = 0.09
+	bm.height = 0.13
+	body.mesh = bm
+	body.material_override = Build.mat(grey, 0.8)
+	body.position = Vector3(0, 0.1, 0)
+	body.scale = Vector3(0.8, 1, 1.4)
+	root.add_child(body)
+	var head := MeshInstance3D.new()
+	var hm := SphereMesh.new()
+	hm.radius = 0.045
+	hm.height = 0.09
+	head.mesh = hm
+	head.material_override = Build.mat(Color(0.35, 0.4, 0.45), 0.6)
+	head.position = Vector3(0, 0.17, -0.1)
+	head.name = "Head"
+	root.add_child(head)
+	Build.box(head, Vector3(0.015, 0.012, 0.035), Vector3(0, -0.005, -0.045), Color(0.85, 0.6, 0.3), false)   # bec
+	Build.box(root, Vector3(0.1, 0.02, 0.08), Vector3(0, 0.1, 0.15), Color(0.3, 0.32, 0.36), false)          # queue
+	for side in [-1, 1]:
+		Build.box(root, Vector3(0.008, 0.06, 0.008), Vector3(side * 0.03, 0.03, 0), Color(0.8, 0.4, 0.4), false)
+	# picore en boucle
+	var tw := create_tween().set_loops()
+	tw.tween_interval(rng.randf_range(0.3, 1.5))
+	tw.tween_property(head, "position", Vector3(0, 0.07, -0.13), 0.12)
+	tw.tween_property(head, "position", Vector3(0, 0.17, -0.1), 0.15)
+	tw.tween_interval(rng.randf_range(0.5, 2.0))
+	tw.tween_property(root, "rotation_degrees:y", root.rotation_degrees.y + rng.randf_range(-90, 90), 0.4)
+	return root
+
+
+## Vitrine avec un intérieur suggéré derrière la vitre (face +X). kind : "cafe" ou "bureau".
+func _shop_window(at: Vector3, size: Vector2, _dir: int, kind: String) -> void:
+	var back_x := at.x - 0.015
+	# fond intérieur chaud et tamisé
+	_glow(Build.box(self, Vector3(0.01, size.y, size.x), Vector3(back_x, at.y, at.z), Color(0.35, 0.24, 0.16), false), Color(0.45, 0.3, 0.18), 0.35)
+	if kind == "cafe":
+		# étagères avec bouteilles et tasses
+		for sy in [0.35, 0.05]:
+			Build.box(self, Vector3(0.012, 0.025, size.x * 0.8), Vector3(back_x + 0.006, at.y + sy, at.z), Color(0.5, 0.33, 0.18), false)
+			for k in 9:
+				var c := Color.from_hsv(fmod(k * 0.17 + sy, 1.0), 0.55, 0.75)
+				_glow(Build.box(self, Vector3(0.012, 0.13, 0.06), Vector3(back_x + 0.01, at.y + sy + 0.08, at.z - size.x * 0.38 + k * 0.095), c, false), c, 0.4)
+		# comptoir + machine à café chromée
+		_rough(Build.box(self, Vector3(0.014, 0.4, size.x * 0.9), Vector3(back_x + 0.012, at.y - size.y / 2 + 0.2, at.z), Color(0.25, 0.15, 0.08), false), 0.5)
+		_metal(Build.box(self, Vector3(0.016, 0.22, 0.3), Vector3(back_x + 0.014, at.y - size.y / 2 + 0.5, at.z + 0.4), Color(0.8, 0.8, 0.82), false), 0.2)
+		# suspensions lumineuses
+		for lz in [-0.5, 0.0, 0.5]:
+			_glow(Build.box(self, Vector3(0.014, 0.08, 0.12), Vector3(back_x + 0.012, at.y + size.y / 2 - 0.12, at.z + lz), Color(1, 0.85, 0.55), false), Color(1, 0.8, 0.5), 2.5)
+	else:
+		# bureau du chef : étagère de classeurs, horaire affiché, écran
+		for k in 8:
+			var c2: Color = [Color(0.2, 0.3, 0.6), Color(0.7, 0.2, 0.2), Color(0.2, 0.5, 0.3), Color(0.85, 0.7, 0.2)][k % 4]
+			Build.box(self, Vector3(0.012, 0.22, 0.06), Vector3(back_x + 0.01, at.y + 0.25, at.z - 0.6 + k * 0.08), c2, false)
+		_glow(Build.box(self, Vector3(0.012, 0.35, 0.45), Vector3(back_x + 0.01, at.y - 0.05, at.z + 0.35), Color(0.95, 0.95, 0.92), false), Color(1, 1, 0.97), 0.3)
+		_glow(Build.box(self, Vector3(0.014, 0.2, 0.3), Vector3(back_x + 0.014, at.y - 0.25, at.z - 0.3), Color(0.3, 0.6, 0.9), false), Color(0.35, 0.65, 1.0), 1.2)
+		_glow(Build.box(self, Vector3(0.012, 0.05, size.x * 0.9), Vector3(back_x + 0.012, at.y + size.y / 2 - 0.06, at.z), Color(1, 0.95, 0.85), false), Color(1, 0.95, 0.85), 2.0)
+	# vitre avec reflet
+	var glass := Build.box(self, Vector3(0.01, size.y, size.x), Vector3(at.x + 0.03, at.y, at.z), Color(0.8, 0.9, 1.0, 0.12), false)
+	_metal(glass, 0.03, Color(0.8, 0.9, 1.0, 0.12), 0.5)
+	# encadrement
+	for side in [-1, 1]:
+		Build.box(self, Vector3(0.05, size.y + 0.1, 0.05), Vector3(at.x + 0.03, at.y, at.z + side * (size.x / 2 + 0.025)), Color(0.12, 0.12, 0.13), false)
+		Build.box(self, Vector3(0.05, 0.05, size.x + 0.1), Vector3(at.x + 0.03, at.y + side * (size.y / 2 + 0.025), at.z), Color(0.12, 0.12, 0.13), false)

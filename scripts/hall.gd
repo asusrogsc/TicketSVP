@@ -199,17 +199,20 @@ func _build_room() -> void:
 	head.pixel_size = 0.003
 	for px in [-0.7, 0.7]:
 		_make_metal(Build.cylinder(board, 0.015, 0.02, Vector3(px, 0.42, 0.05), Color(0.85, 0.2, 0.2)), Color(0.85, 0.2, 0.2), 0.3)
-	var y := 0.14
+	# une entrée par ligne, sur deux rangs : « Bus Ligne 1 » puis le trajet, en plus gros
+	var y := 0.17
 	for l in Game.lines:
-		var t := "%s  %s  —  %s → %s" % [l.type, l.name, l.from, l.to]
-		if not l.unlocked:
-			t += "  (bientôt)"
-		Build.box(board, Vector3(0.06, 0.06, 0.01), Vector3(-0.66, y, 0.045), l.color, false)     # pastille couleur de ligne
-		var lt := Build.label3d(board, t, Vector3(-0.6, y, 0.05), 26, l.color.darkened(0.35))
-		lt.pixel_size = 0.0021
-		lt.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		lt.outline_size = 0
-		y -= 0.16
+		Build.box(board, Vector3(0.08, 0.08, 0.01), Vector3(-0.66, y - 0.01, 0.045), l.color, false)   # pastille couleur de ligne
+		var name_l := Build.label3d(board, "%s %s" % [l.type, l.name], Vector3(-0.59, y + 0.02, 0.05), 30, l.color.darkened(0.35))
+		name_l.pixel_size = 0.0029
+		name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		name_l.outline_size = 0
+		var route := "%s → %s%s" % [l.from, l.to, "" if l.unlocked else "   (bientôt)"]
+		var route_l := Build.label3d(board, route, Vector3(-0.59, y - 0.05, 0.05), 24, Color(0.2, 0.2, 0.25))
+		route_l.pixel_size = 0.0026
+		route_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		route_l.outline_size = 0
+		y -= 0.22
 	var hint := Build.label3d(board, "[E] pour choisir", Vector3(0, -0.36, 0.05), 22, Color(0.35, 0.35, 0.38))
 	hint.pixel_size = 0.0028
 	hint.outline_size = 0
@@ -450,9 +453,17 @@ func _build_window_and_garden() -> void:
 	_make_glass(glass)
 	# appui de fenêtre + radiateur dessous
 	_woods.append(Build.box(self, Vector3(0.28, 0.04, 1.7), Vector3(wx - 0.14, 1.08, 1.55), Color(0.92, 0.9, 0.86), false))
-	for k in 10:
-		_make_metal(Build.box(self, Vector3(0.08, 0.55, 0.03), Vector3(wx - 0.12, 0.55, 1.0 + k * 0.12), Color(0.93, 0.93, 0.92), false), Color(0.93, 0.93, 0.92), 0.35)
-	_make_metal(Build.cylinder(self, 0.012, 1.3, Vector3(wx - 0.12, 0.25, 1.55), Color(0.9, 0.9, 0.9)), Color(0.9, 0.9, 0.9), 0.3)
+	# radiateur en fonte : éléments serrés, collecteurs haut/bas, pieds, robinet
+	var rad_col := Color(0.93, 0.93, 0.91)
+	for k in 16:
+		var fin := Build.box(self, Vector3(0.1, 0.56, 0.055), Vector3(wx - 0.13, 0.48, 1.0 + k * 0.073), rad_col, false)
+		_make_metal(fin, rad_col, 0.45)
+	for yy in [0.22, 0.74]:
+		_make_metal(Build.box(self, Vector3(0.06, 0.05, 1.16), Vector3(wx - 0.13, yy, 1.55), rad_col, false), rad_col, 0.45)
+	for zz in [1.05, 2.05]:
+		_make_metal(Build.box(self, Vector3(0.06, 0.2, 0.05), Vector3(wx - 0.13, 0.1, zz), rad_col, false), rad_col, 0.45)
+	_make_metal(Build.cylinder(self, 0.012, 0.22, Vector3(wx - 0.13, 0.11, 0.9), Color(0.85, 0.85, 0.85)), Color(0.85, 0.85, 0.85), 0.3)
+	_make_metal(Build.cylinder(self, 0.025, 0.05, Vector3(wx - 0.13, 0.8, 0.95), Color(0.85, 0.7, 0.35)), Color(0.85, 0.7, 0.35), 0.25)
 	# tringle et rideaux à plis
 	var rod := Build.cylinder(self, 0.015, 2.3, Vector3(wx - 0.12, 2.6, 1.55), Color(0.7, 0.55, 0.3))
 	rod.rotation_degrees.x = 90
@@ -593,18 +604,22 @@ func _build_hd_extras() -> void:
 		Build.box(self, Vector3(0.11, 0.08, 0.28), Vector3(-1.55 + k * 0.14, 0.04, -3.2), Color(0.06, 0.06, 0.07), false)
 
 	# --- porte-manteau : veste de contrôleur et écharpe
-	var coat := MeshInstance3D.new()
-	var cm := CapsuleMesh.new()
-	cm.radius = 0.15
-	cm.height = 0.85
-	coat.mesh = cm
-	coat.material_override = Build.mat(Color(0.12, 0.18, 0.38), 0.9)
-	coat.position = Vector3(-2.0, 1.33, -2.62)
-	add_child(coat)
-	Build.box(self, Vector3(0.31, 0.03, 0.31), Vector3(-2.0, 1.25, -2.62), Color(0.95, 0.8, 0.1), false)   # bande réfléchissante
-	var scarf := Build.box(self, Vector3(0.08, 0.6, 0.12), Vector3(-2.15, 1.45, -2.78), Color(0.75, 0.2, 0.2), false)
-	scarf.rotation_degrees.x = 10
-	_make_fabric(scarf)
+	_build_coat(Vector3(-1.93, 0, -2.7))
+	# casquette de rechange accrochée à la patère côté fenêtre
+	var cap := Build.cylinder(self, 0.12, 0.07, Vector3(-2.1, 1.7, -2.55), Color(0.1, 0.16, 0.36))
+	cap.rotation_degrees.x = -70
+	_make_fabric(cap)
+	var visor := Build.box(self, Vector3(0.18, 0.012, 0.1), Vector3(-2.1, 1.62, -2.49), Color(0.05, 0.05, 0.06), false)
+	visor.rotation_degrees.x = -70
+	var band := Build.cylinder(self, 0.122, 0.02, Vector3(-2.1, 1.7, -2.555), Color(0.95, 0.8, 0.1))
+	band.rotation_degrees.x = -70
+	# écharpe sur la patère arrière
+	for k in 2:
+		var scarf := Build.box(self, Vector3(0.025, 0.55, 0.11), Vector3(-2.1 + (k - 0.5) * 0.04, 1.5, -2.82), Color(0.72, 0.18, 0.2), false)
+		scarf.rotation_degrees.z = (k - 0.5) * 8
+		_make_fabric(scarf)
+	for k in 3:   # franges
+		Build.box(self, Vector3(0.02, 0.05, 0.1), Vector3(-2.12 + k * 0.02, 1.2, -2.82), Color(0.6, 0.12, 0.15), false)
 
 	# --- meuble à chaussures : tiroirs et boutons
 	for dy in [0.25, 0.6]:
@@ -753,3 +768,54 @@ func _apply_shader(n: Node, code: String, params: Dictionary) -> void:
 	m.material_override = mat
 
 var _shader_cache := {}
+
+
+## Veste de contrôleur suspendue, face à la pièce (+X) : épaules, buste, manches, col, boutons, bandes réfléchissantes.
+func _build_coat(at: Vector3) -> void:
+	var navy := Color(0.11, 0.16, 0.34)
+	var yellow := Color(0.95, 0.8, 0.1)
+	var root := Node3D.new()
+	root.position = at
+	add_child(root)
+	# cintre en bois sur la patère
+	var hanger := Build.box(root, Vector3(0.02, 0.025, 0.4), Vector3(0, 1.7, 0), Color(0.55, 0.38, 0.2), false)
+	_make_fabric(hanger)
+	# épaules arrondies
+	var sh := MeshInstance3D.new()
+	var shm := CapsuleMesh.new()
+	shm.radius = 0.065
+	shm.height = 0.46
+	sh.mesh = shm
+	sh.material_override = Build.mat(navy, 0.9)
+	sh.position = Vector3(0, 1.64, 0)
+	sh.rotation_degrees.x = 90
+	root.add_child(sh)
+	# buste (s'évase légèrement vers le bas) et pans
+	for part in [[Vector3(0.13, 0.32, 0.4), 1.44], [Vector3(0.12, 0.3, 0.42), 1.13]]:
+		var b := Build.box(root, part[0], Vector3(0, part[1], 0), navy, false)
+		_make_fabric(b)
+	# ouverture centrale + col
+	Build.box(root, Vector3(0.005, 0.6, 0.012), Vector3(0.066, 1.28, 0), Color(0.05, 0.07, 0.15), false)
+	for side in [-1, 1]:
+		var col := Build.box(root, Vector3(0.02, 0.12, 0.09), Vector3(0.07, 1.6, side * 0.05), navy.darkened(0.25), false)
+		col.rotation_degrees.x = side * 25
+	# boutons dorés
+	for k in 4:
+		_make_metal(Build.box(root, Vector3(0.012, 0.022, 0.022), Vector3(0.068, 1.52 - k * 0.12, 0.025), Color(0.85, 0.7, 0.3), false), Color(0.85, 0.7, 0.3), 0.25)
+	# poches
+	for side in [-1, 1]:
+		Build.box(root, Vector3(0.008, 0.012, 0.12), Vector3(0.064, 1.12, side * 0.12), Color(0.05, 0.07, 0.15), false)
+	# manches qui pendent
+	for side in [-1, 1]:
+		var sl := MeshInstance3D.new()
+		var slm := CapsuleMesh.new()
+		slm.radius = 0.05
+		slm.height = 0.6
+		sl.mesh = slm
+		sl.material_override = Build.mat(navy.darkened(0.05), 0.9)
+		sl.position = Vector3(-0.01, 1.33, side * 0.23)
+		sl.rotation_degrees.x = side * 6
+		root.add_child(sl)
+		Build.box(root, Vector3(0.105, 0.035, 0.105), Vector3(-0.01, 1.16, side * 0.235), yellow, false)   # bande de manche
+	# bande réfléchissante autour du buste
+	_make_emissive(Build.box(root, Vector3(0.125, 0.04, 0.425), Vector3(0, 1.2, 0), yellow, false), yellow, 0.15)
