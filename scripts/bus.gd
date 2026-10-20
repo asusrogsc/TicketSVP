@@ -8,13 +8,13 @@ const STOP_TIME := 8.0        # arrêt par défaut, portes ouvertes (réglable p
 const WRAP_BACK := 80.0
 const WRAP_LEN := 320.0
 const DOOR_Z := 0.0           # porte du milieu (côté droit, +X)
-const BOARD_MIN := 8          # passagers qui montent à chaque arrêt (min)   — avant : 2
-const BOARD_MAX := 12          # passagers qui montent à chaque arrêt (max)   — avant : 4
+const BOARD_MIN := 12          # passagers qui montent à chaque arrêt (min)   — avant : 2
+const BOARD_MAX := 15          # passagers qui montent à chaque arrêt (max)   — avant : 4
 const ALIGHT_MIN := 1         # passagers qui descendent à chaque arrêt (min) — avant : 1
 const ALIGHT_MAX := 3         # passagers qui descendent à chaque arrêt (max) — avant : 2
-const SPECIALS_MIN := 3       # personnages spéciaux par trajet (minimum)
+const SPECIALS_MIN := 5       # personnages spéciaux par trajet (minimum)
 const QUALITY_HIGH := true    # passe à false si le PC rame
-const SPECIALS_MAX := 6       # personnages spéciaux par trajet (maximum)
+const SPECIALS_MAX := 10       # personnages spéciaux par trajet (maximum)
 const CHATTY_IDS := ["oldman", "homme1", "homme2"]
 
 var line: Dictionary
@@ -738,9 +738,9 @@ func _update_texts() -> void:
 		"depart": where = "Départ dans %d s" % ceil(state_t)
 		"stop": where = "À l'arrêt : " + stop_name(stop_index)
 		"terminus", "fin": where = "Terminus : " + stop_name(line.stops.size() - 1)
+		_: where = "Prochain arrêt : " + nxt
 	if line.get("retour", false):
 		where = "[Retour]  " + where
-		_: where = "Prochain arrêt : " + nxt
 	display.text = "%s  %s → %s\n%s" % [line.name, line.from, line.to, where]
 	var ctrl := passengers.filter(func(p): return p.controlled).size()
 	hud.set_info("%s %s   |   %s   |   Contrôlés à bord : %d / %d   |   Score : %d   |   Amendes : %d €" % [
