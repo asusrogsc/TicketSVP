@@ -260,6 +260,7 @@ func _deform_all(seated: bool) -> Array:
 		"hip": y0 + 0.52 * H, "knee": y0 + 0.285 * H,
 		"sh_y": y0 + 0.815 * H, "sh_x": 0.105 * H,
 		"mzelle": _cache_key.get_file().get_basename().to_lower() == "mzelle",
+		"julie": _cache_key.get_file().get_basename().to_lower() == "julie",
 	}
 	var out := []
 	for e in _static_meshes:
@@ -272,12 +273,16 @@ func _deform_all(seated: bool) -> Array:
 			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 			var n: PackedVector3Array = arr[Mesh.ARRAY_NORMAL] if arr[Mesh.ARRAY_NORMAL] != null else PackedVector3Array()
 			var has_n := n.size() == v.size()
+			var julie_parts := PackedInt32Array()
+			if P.get("julie", false) and seated:
+				julie_parts = _julie_parts(v, arr[Mesh.ARRAY_INDEX], rel)
 			for i in v.size():
 				var p: Vector3 = rel * v[i]
+				if not julie_parts.is_empty(): P["julie_part"] = julie_parts[i]
 				var r := _deform(p, P)
 				v[i] = inv * (r * p)
 				if has_n:
-					if P.mzelle:
+					if P.mzelle or (P.get("julie", false) and seated):
 						var local_basis: Basis = inv.basis * r.basis * rel.basis
 						n[i] = (local_basis.inverse().transposed() * n[i]).normalized()
 					else:
@@ -299,6 +304,8 @@ static func _rot_about(pivot: Vector3, axis: Vector3, deg: float) -> Transform3D
 
 ## Transformation d'un sommet : bras baissés (modèle en T), puis jambes pliées (assis).
 func _deform(p: Vector3, P: Dictionary) -> Transform3D:
+	if P.seated and P.get("julie", false):
+		return _julie_seated(p, P)
 	var H: float = P.H
 	var c: Vector3 = P.c
 	var t := Transform3D()
@@ -404,3 +411,98 @@ func _fany_rest_box() -> AABB:
 				low = low.min(point)
 				high = high.max(point)
 	return AABB(low, high - low)
+
+
+## Julie : pose assise dédiée. Les bras d'origine sont asymétriques ;
+## ne pas les traiter comme une T-pose (les cheveux faussent cette détection).
+func _julie_seated(p: Vector3, P: Dictionary) -> Transform3D:
+	var H: float = P.H
+	var c: Vector3 = P.c
+	var y0: float = box.position.y
+	var q := (p - Vector3(c.x, y0, c.z)) / H
+	var part: int = P.get("julie_part", 0)
+	if part == 10:
+		var original := P.duplicate()
+		original["julie"] = false
+		return _deform(p, original)
+	var side := -1.0 if part < 0 else 1.0
+	var shoulder := Vector3(-0.065, 0.795, -0.025) if side < 0.0 else Vector3(0.065, 0.80, 0.025)
+	var elbow := Vector3(-0.115, 0.645, -0.025) if side < 0.0 else Vector3(0.17, 0.715, -0.005)
+	var arm_w := 1.0 if part != 0 else 0.0
+	if absi(part) == 1:
+		var axis := elbow - shoulder
+		arm_w *= smoothstep(0.0, 0.65, (q - shoulder).dot(axis) / axis.length_squared())
+	var fore_w := 1.0 if absi(part) in [2, 3] else (0.25 if absi(part) == 4 else 0.0)
+	var origin := Vector3(c.x, y0, c.z)
+	var sh := origin + shoulder * H
+	var el := origin + elbow * H
+	var arm := _rot_about(sh, Vector3.RIGHT, -8.0)
+	arm = arm * _rot_about(sh, Vector3.BACK, 10.0 if side < 0.0 else -55.0)
+	arm = arm * _rot_about(el, Vector3.RIGHT, (-40.0 if side < 0.0 else -40.0) * fore_w)
+	arm = arm * _rot_about(el, Vector3.BACK, (40.0 if side < 0.0 else 90.0) * fore_w)
+	var knee := y0 + 0.355 * H
+	var lx: float = max(_legs_x, 0.1 * H)
+	var wx := 1.0 - smoothstep(lx + 0.02 * H, lx + 0.06 * H, absf(p.x - c.x))
+	var wh := smoothstep(P.hip + 0.02 * H, P.hip - 0.06 * H, p.y) * wx
+	var wk := smoothstep(knee + 0.015 * H, knee - 0.025 * H, p.y) * wx
+	var leg := _rot_about(Vector3(p.x, P.hip, c.z), Vector3.RIGHT, -88.0 * wh) * _rot_about(Vector3(p.x, knee, c.z + 0.01 * H), Vector3.RIGHT, 88.0 * wk)
+	var lower := 1.0 - smoothstep(0.42, 0.55, q.y)
+	var width := lerpf(1.0, 0.82, lower * wx)
+	var compression := Basis.from_scale(Vector3(width, 1.0, 1.0))
+	var center := Vector3(c.x, 0, 0)
+	leg = Transform3D(compression, center - compression * center) * leg
+	return leg.interpolate_with(arm, arm_w)
+
+
+## Identifier les pièces connexes évite de prendre les cheveux pour un bras.
+## Le classement est refait sur les tableaux importés : aucun indice fixe
+## dépendant de la version de Godot n'est stocké dans le patch.
+func _julie_parts(vertices: PackedVector3Array, indices: PackedInt32Array, rel: Transform3D) -> PackedInt32Array:
+	var count := vertices.size()
+	var parents := PackedInt32Array()
+	parents.resize(count)
+	var points := PackedVector3Array()
+	points.resize(count)
+	var welded := {}
+	for i in count:
+		var q := (rel * vertices[i] - Vector3(_body.x, box.position.y, _body.z)) / box.size.y
+		points[i] = q
+		var key := Vector3i((q * 100000.0).round())
+		parents[i] = welded.get(key, i)
+		if not welded.has(key): welded[key] = i
+	for i in range(0, indices.size(), 3):
+		var a := _julie_find(parents, indices[i])
+		for k in [1, 2]:
+			var b := _julie_find(parents, indices[i + k])
+			parents[b] = a
+	var sums := {}
+	var counts := {}
+	for i in count:
+		var group := _julie_find(parents, i)
+		sums[group] = sums.get(group, Vector3.ZERO) + points[i]
+		counts[group] = counts.get(group, 0) + 1
+	var tags := {}
+	for group in sums:
+		var center: Vector3 = sums[group] / counts[group]
+		var tag := 0
+		if center.x > -0.135 and center.x < -0.065 and center.y > 0.69 and center.y < 0.76: tag = -1
+		elif center.x > -0.18 and center.x < -0.12 and center.y > 0.565 and center.y < 0.62: tag = -2
+		elif center.x > -0.21 and center.x < -0.14 and center.y > 0.49 and center.y < 0.55: tag = -3
+		elif center.x > 0.11 and center.x < 0.17 and center.y > 0.72 and center.y < 0.78: tag = 1
+		elif center.x > 0.12 and center.x < 0.18 and center.y > 0.64 and center.y < 0.685: tag = 2
+		elif center.x > 0.06 and center.x < 0.12 and center.y > 0.60 and center.y < 0.64: tag = 3
+		elif center.x > 0.17 and center.x < 0.215 and center.y > 0.70 and center.y < 0.75: tag = 4
+		elif center.x < -0.18 and center.y > 0.64 and center.y < 0.70: tag = 10
+		tags[group] = tag
+	var result := PackedInt32Array()
+	result.resize(count)
+	for i in count: result[i] = tags[_julie_find(parents, i)]
+	return result
+
+
+func _julie_find(parents: PackedInt32Array, index: int) -> int:
+	var current := index
+	while parents[current] != current:
+		parents[current] = parents[parents[current]]
+		current = parents[current]
+	return current
