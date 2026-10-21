@@ -13,6 +13,7 @@ var k := 1.0              # échelle appliquée
 var box: AABB             # boîte englobante dans l'espace du modèle
 var hip := Vector3.ZERO   # articulation de la hanche (espace du modèle)
 var skel: Skeleton3D
+var _judith_rig := false
 var _fany_rig := false
 var _fany_animator: AnimationPlayer
 var _mzelle_rig := false
@@ -34,6 +35,7 @@ func _init(path: String, parent: Node3D, height := 0.0) -> void:
 	var sks := root.find_children("*", "Skeleton3D", true, false)
 	skel = sks[0] if sks.size() > 0 else null
 	if skel:
+		_judith_rig = path.get_file().to_lower() == "judith.glb"
 		if path.get_file().to_lower() == "fany.glb":
 			var players := root.find_children("*", "AnimationPlayer", true, false)
 			for animator in players:
@@ -141,6 +143,9 @@ func _turn(b: int, axis_model: Vector3, deg: float) -> void:
 
 
 func _pose_skeleton(seated: bool) -> void:
+	if _judith_rig:
+		_pose_judith(seated)
+		return
 	if _fany_rig and _fany_animator != null:
 		var pose_name := "Fany_Seated" if seated else "Fany_Standing"
 		_fany_animator.play(pose_name)
@@ -506,3 +511,74 @@ func _julie_find(parents: PackedInt32Array, index: int) -> int:
 		parents[current] = parents[parents[current]]
 		current = parents[current]
 	return current
+
+
+## Judith arrive en A-pose, pas en T-pose : un rabattement de 72 degrés
+## enfouit les bras dans le buste. Réglages réservés à ce modèle.
+func _pose_judith(seated: bool) -> void:
+	skel.reset_bone_poses()
+	var B: Dictionary = _bones
+	for side in ["l", "r"]:
+		_turn(B.get(side + "_arm", -1), Vector3.BACK, -32.0 if side == "l" else 32.0)
+		if seated:
+			_turn(B.get(side + "_arm", -1), Vector3.RIGHT, -10.0)
+			_turn(B.get(side + "_fore", -1), Vector3.BACK, -20.0 if side == "l" else 20.0)
+			_turn(B.get(side + "_fore", -1), Vector3.RIGHT, -68.0)
+			_turn(B.get(side + "_thigh", -1), Vector3.RIGHT, -88.0)
+			_turn(B.get(side + "_shin", -1), Vector3.RIGHT, 88.0)
+			_judith_pronate(side)
+		else:
+			_turn(B.get(side + "_fore", -1), Vector3.RIGHT, -5.0)
+	if seated:
+		# Les huit chaînes de la jupe accompagnent les cuisses ; la dernière
+		# partie retombe au niveau des genoux plutôt que de traverser le siège.
+		for i in skel.get_bone_count():
+			var name := skel.get_bone_name(i)
+			if "Skirt" not in name: continue
+			var angle := 0.0
+			if "SkirtA_a_Phy" in name: angle = -78.0
+			elif "SkirtB_a_Phy" in name: angle = -75.0
+			elif "SkirtC_a_Phy" in name: angle = 0.0
+			elif "SkirtD_a_Phy" in name: angle = 0.0
+			elif "SkirtA_c_Phy" in name or "SkirtB_c_Phy" in name: angle = 35.0
+			elif "SkirtC_b_Phy" in name: angle = -80.0
+			elif "SkirtD_b_Phy" in name: angle = -80.0
+			if angle != 0.0 and "end" not in name.to_lower(): _turn(i, Vector3.RIGHT, angle)
+
+
+## Retourner les paumes vers la robe en répartissant la torsion sur les
+## os de déroulement de l'avant-bras, pas uniquement sur le poignet.
+func _judith_pronate(side: String) -> void:
+	var prefix := "L_" if side == "l" else "R_"
+	var hand := -1
+	for i in skel.get_bone_count():
+		if skel.get_bone_name(i).begins_with(prefix + "Hand_a_"): hand = i; break
+	var fore: int = _bones.get(side + "_fore", -1)
+	if hand < 0 or fore < 0: return
+	var elbow := _rel_skel * skel.get_bone_global_pose(fore).origin
+	var wrist := _rel_skel * skel.get_bone_global_pose(hand).origin
+	var delta := wrist - elbow
+	if delta.length_squared() < 0.000001: return
+	var angle := 150.0 if side == "l" else -150.0
+	_judith_twist_bone(fore, elbow, delta.normalized(), angle * 0.5)
+	for i in skel.get_bone_count():
+		var name := skel.get_bone_name(i)
+		if not name.begins_with(prefix): continue
+		if ("Forearmroll" in name and "_Spo_" in name) or "Wrist_Spo_" in name:
+			var point := _rel_skel * skel.get_bone_global_pose(i).origin
+			var amount := clampf((point - elbow).dot(delta) / delta.length_squared(), 0.0, 1.0)
+			_judith_twist_bone(i, elbow, delta.normalized(), angle * (amount - 0.5))
+	_judith_twist_bone(hand, elbow, delta.normalized(), angle * 0.5)
+
+
+func _judith_twist_bone(index: int, pivot_model: Vector3, axis_model: Vector3, degrees: float) -> void:
+	var inverse := _rel_skel.affine_inverse()
+	var pivot := inverse * pivot_model
+	var rotation := Basis((inverse.basis * axis_model).normalized(), deg_to_rad(degrees))
+	var current := skel.get_bone_global_pose(index)
+	var target := Transform3D(rotation * current.basis, pivot + rotation * (current.origin - pivot))
+	var parent := skel.get_bone_parent(index)
+	var parent_pose := skel.get_bone_global_pose(parent) if parent >= 0 else Transform3D()
+	var local := parent_pose.affine_inverse() * target
+	skel.set_bone_pose_position(index, local.origin)
+	skel.set_bone_pose_rotation(index, local.basis.orthonormalized().get_rotation_quaternion())
