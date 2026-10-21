@@ -175,10 +175,7 @@ func _build_station_building() -> void:
 			_window(Vector3(-4.47, 2.2, z), Vector2(1.4, 1.7), rng.randf() < 0.45)
 		_window(Vector3(-4.47, 5.6, z), Vector2(1.1, 1.5), rng.randf() < 0.3)
 	# entrée principale vitrée + auvent
-	Build.box(self, Vector3(0.08, 2.9, 2.7), Vector3(-4.48, 1.45, 0), Color(0.88, 0.85, 0.8), false)
-	var entry := Build.box(self, Vector3(0.05, 2.6, 2.4), Vector3(-4.43, 1.3, 0), Color(1, 0.9, 0.7), false)
-	_glow(entry, Color(1, 0.88, 0.65), 1.0)
-	Build.box(self, Vector3(0.06, 2.6, 0.05), Vector3(-4.41, 1.3, 0), Color(0.2, 0.2, 0.22), false)   # séparation des portes
+	_entrance(Vector3(-4.5, 0, 0))
 	# enseigne et grande horloge de façade
 	var sign_l := Build.label3d(self, "GARE — " + str(line.to).to_upper(), Vector3(-4.38, 6.95, 0), 120, Color(1, 1, 1))
 	sign_l.rotation_degrees.y = 90
@@ -265,20 +262,80 @@ func _windscreen(at: Vector3) -> void:
 
 
 func _ticket_machine(at: Vector3) -> void:
-	_metal(Build.box(self, Vector3(0.6, 1.7, 0.75), at + Vector3(0, 0.85, 0), Color(0.12, 0.3, 0.6)), 0.4, null, 0.5)
-	_glow(Build.box(self, Vector3(0.02, 0.4, 0.5), at + Vector3(0.31, 1.3, 0), Color(0.3, 0.7, 1.0), false), Color(0.35, 0.75, 1.0), 1.2)
-	Build.box(self, Vector3(0.05, 0.12, 0.3), at + Vector3(0.32, 0.9, 0), Color(0.08, 0.08, 0.1), false)
-	var l := Build.label3d(self, "TICKETS", Vector3(at.x + 0.33, 1.6, at.z), 30, Color.WHITE)
-	l.rotation_degrees.y = 90
+	var blue := Color(0.1, 0.27, 0.55)
+	var fx := at.x + 0.3                       # face avant (tournée vers le quai, +X)
+	_metal(Build.box(self, Vector3(0.6, 1.75, 0.78), at + Vector3(0, 0.95, 0), blue), 0.35, null, 0.6)
+	_metal(Build.box(self, Vector3(0.64, 0.08, 0.82), at + Vector3(0, 0.04, 0), Color(0.15, 0.15, 0.17), false), 0.4)   # socle
+	# fronton lumineux
+	_glow(Build.box(self, Vector3(0.02, 0.2, 0.74), Vector3(fx + 0.01, 1.7, at.z), Color(0.95, 0.95, 0.95), false), Color(1, 1, 1), 0.8)
+	Build.box(self, Vector3(0.022, 0.03, 0.74), Vector3(fx + 0.012, 1.6, at.z), line.color, false)
+	_lbl("TICKETS · ABONNEMENTS", Vector3(fx + 0.025, 1.7, at.z), 26, Color(0.1, 0.2, 0.45), 0.0022)
+	# écran tactile incliné avec interface
+	var bezel := Build.box(self, Vector3(0.06, 0.38, 0.5), Vector3(fx + 0.02, 1.32, at.z), Color(0.08, 0.08, 0.1), false)
+	bezel.rotation_degrees.z = -12
+	var scr := Build.box(self, Vector3(0.01, 0.32, 0.44), Vector3(fx + 0.052, 1.326, at.z), Color(0.2, 0.45, 0.8), false)
+	scr.rotation_degrees.z = -12
+	_glow(scr, Color(0.25, 0.5, 0.9), 0.9)
+	var ui := _lbl("Choisissez votre titre", Vector3(fx + 0.06, 1.43, at.z), 20, Color.WHITE, 0.0018)
+	ui.rotation_degrees.z = -12
+	for k in 3:
+		var btn := Build.box(self, Vector3(0.008, 0.05, 0.36), Vector3(fx + 0.062 - k * 0.012, 1.36 - k * 0.07, at.z), [Color(0.3, 0.8, 0.5), Color(0.95, 0.75, 0.2), Color(0.9, 0.4, 0.3)][k], false)
+		btn.rotation_degrees.z = -12
+		_glow(btn, [Color(0.3, 0.8, 0.5), Color(0.95, 0.75, 0.2), Color(0.9, 0.4, 0.3)][k], 0.6)
+	# lecteur de carte (LED verte), monnayeur, clavier
+	_metal(Build.box(self, Vector3(0.05, 0.14, 0.12), Vector3(fx + 0.02, 1.0, at.z + 0.2), Color(0.15, 0.15, 0.17), false), 0.3)
+	_glow(Build.box(self, Vector3(0.01, 0.015, 0.05), Vector3(fx + 0.046, 1.06, at.z + 0.2), Color(0.2, 1, 0.4), false), Color(0.2, 1, 0.4), 2.0)
+	_metal(Build.box(self, Vector3(0.03, 0.1, 0.06), Vector3(fx + 0.01, 1.0, at.z - 0.2), Color(0.7, 0.72, 0.75), false), 0.25)
+	Build.box(self, Vector3(0.01, 0.06, 0.008), Vector3(fx + 0.027, 1.0, at.z - 0.2), Color(0.02, 0.02, 0.02), false)
+	for r in 4:
+		for c in 3:
+			_metal(Build.box(self, Vector3(0.015, 0.035, 0.035), Vector3(fx + 0.01, 1.04 - r * 0.045, at.z - 0.05 + c * 0.045), Color(0.75, 0.76, 0.78), false), 0.3)
+	# sortie des tickets (éclairée)
+	Build.box(self, Vector3(0.04, 0.1, 0.3), Vector3(fx + 0.02, 0.62, at.z), Color(0.05, 0.05, 0.06), false)
+	_glow(Build.box(self, Vector3(0.01, 0.012, 0.22), Vector3(fx + 0.042, 0.66, at.z), Color(1, 0.85, 0.4), false), Color(1, 0.85, 0.4), 1.5)
+	# logos de paiement
+	for k in 3:
+		Build.box(self, Vector3(0.008, 0.035, 0.06), Vector3(fx + 0.005, 0.8, at.z - 0.08 + k * 0.08), [Color(0.1, 0.2, 0.6), Color(0.9, 0.5, 0.1), Color(0.85, 0.15, 0.15)][k], false)
 
 
 func _vending_machine(at: Vector3) -> void:
-	_metal(Build.box(self, Vector3(0.8, 1.9, 1.0), at + Vector3(0, 0.95, 0), Color(0.75, 0.12, 0.12)), 0.4, null, 0.4)
-	_glow(Build.box(self, Vector3(0.02, 1.2, 0.65), at + Vector3(0.41, 1.15, -0.1), Color(0.95, 0.95, 0.9), false), Color(1, 0.97, 0.9), 1.0)
+	var red := Color(0.62, 0.08, 0.08)
+	var fx := at.x + 0.4
+	_metal(Build.box(self, Vector3(0.8, 1.95, 1.0), at + Vector3(0, 0.99, 0), red), 0.3, null, 0.5)
+	for dz in [-0.42, 0.42]:   # pieds
+		Build.box(self, Vector3(0.7, 0.04, 0.08), at + Vector3(0, 0.02, dz), Color(0.1, 0.1, 0.1), false)
+	# fronton
+	_glow(Build.box(self, Vector3(0.02, 0.2, 0.96), Vector3(fx + 0.01, 1.82, at.z), Color(0.95, 0.95, 0.95), false), Color(1, 1, 1), 0.8)
+	_lbl("BOISSONS FRAÎCHES", Vector3(fx + 0.025, 1.82, at.z), 30, Color(0.65, 0.08, 0.08), 0.0024)
+	# vitrine : fond éclairé, 5 étagères de canettes et bouteilles
+	var wz := at.z - 0.13
+	_glow(Build.box(self, Vector3(0.01, 1.3, 0.64), Vector3(fx - 0.06, 1.1, wz), Color(0.85, 0.88, 0.92), false), Color(0.9, 0.93, 1.0), 0.8)
+	for r in 5:
+		var sy := 0.55 + r * 0.26
+		_metal(Build.box(self, Vector3(0.1, 0.012, 0.62), Vector3(fx - 0.01, sy, wz), Color(0.7, 0.72, 0.75), false), 0.3)
+		for c in 5:
+			var col := Color.from_hsv(fmod(r * 0.21 + c * 0.13, 1.0), 0.7, 0.8)
+			var can := Build.cylinder(self, 0.032, 0.12 if r < 3 else 0.17, Vector3(fx - 0.02, sy + (0.066 if r < 3 else 0.091), wz - 0.25 + c * 0.125), col)
+			_metal(can, 0.25, col, 0.6)
+			Build.box(self, Vector3(0.005, 0.015, 0.05), Vector3(fx + 0.042, sy - 0.012, wz - 0.25 + c * 0.125), Color(1, 1, 0.9), false)   # étiquette prix
+	var glass := Build.box(self, Vector3(0.012, 1.34, 0.68), Vector3(fx + 0.012, 1.1, wz), Color(0.8, 0.9, 1.0, 0.12), false)
+	_metal(glass, 0.03, Color(0.8, 0.9, 1.0, 0.12), 0.5)
+	for side in [-1, 1]:
+		Build.box(self, Vector3(0.03, 1.4, 0.03), Vector3(fx + 0.012, 1.1, wz + side * 0.355), Color(0.12, 0.12, 0.13), false)
+	# panneau de commande : afficheur, clavier, monnayeur, lecteur de carte
+	var pz := at.z + 0.33
+	Build.box(self, Vector3(0.02, 0.1, 0.22), Vector3(fx + 0.01, 1.45, pz), Color(0.03, 0.05, 0.03), false)
+	var disp := _lbl("1,50 €", Vector3(fx + 0.022, 1.45, pz), 26, Color(0.3, 1, 0.4), 0.0022)
+	disp.modulate = Color(0.3, 1, 0.4)
 	for r in 4:
-		for c in 4:
-			Build.box(self, Vector3(0.03, 0.12, 0.08), at + Vector3(0.42, 0.7 + r * 0.28, -0.35 + c * 0.17),
-				Color.from_hsv(fmod(r * 0.23 + c * 0.17, 1.0), 0.7, 0.85), false)
+		for c in 3:
+			_metal(Build.box(self, Vector3(0.015, 0.035, 0.05), Vector3(fx + 0.008, 1.32 - r * 0.05, pz - 0.06 + c * 0.06), Color(0.85, 0.86, 0.88), false), 0.3)
+	_metal(Build.box(self, Vector3(0.03, 0.12, 0.08), Vector3(fx + 0.015, 1.0, pz), Color(0.75, 0.76, 0.78), false), 0.25)   # monnayeur
+	Build.box(self, Vector3(0.01, 0.07, 0.008), Vector3(fx + 0.031, 1.02, pz), Color(0.02, 0.02, 0.02), false)
+	_glow(Build.box(self, Vector3(0.02, 0.1, 0.14), Vector3(fx + 0.012, 0.82, pz), Color(0.15, 0.15, 0.17), false), Color(0.1, 0.4, 0.9), 0.4)   # sans contact
+	# trappe de distribution
+	Build.box(self, Vector3(0.04, 0.2, 0.62), Vector3(fx + 0.015, 0.28, wz), Color(0.06, 0.06, 0.07), false)
+	_metal(Build.box(self, Vector3(0.03, 0.03, 0.3), Vector3(fx + 0.04, 0.36, wz), Color(0.7, 0.72, 0.75), false), 0.25)
 
 
 func _map_panel(at: Vector3) -> void:
@@ -1404,3 +1461,48 @@ func _bin(at: Vector3) -> void:
 	logo.rotation_degrees.y = 90
 	logo.pixel_size = 0.002
 	logo.outline_size = 0
+
+
+
+## Entrée de la gare : encadrement en pierre, portes vitrées alu avec barres de poussée,
+## imposte « ENTRÉE », hall éclairé visible derrière, paillasson.
+func _entrance(at: Vector3) -> void:
+	var stone := Color(0.86, 0.83, 0.77)
+	var alu := Color(0.22, 0.23, 0.25)
+	var w := 2.4
+	var h := 2.6
+	var fx := at.x
+	# encadrement en pierre
+	_tiles(Build.box(self, Vector3(0.14, 0.3, w + 0.6), Vector3(fx + 0.05, h + 0.55, at.z), stone, false),
+		Vector2(0.5, 0.3), 0.0, 0.006, stone, stone.darkened(0.2), 0.08, 0.25, 0.85)
+	for side in [-1, 1]:
+		_tiles(Build.box(self, Vector3(0.14, h + 0.7, 0.3), Vector3(fx + 0.05, (h + 0.7) / 2, at.z + side * (w / 2 + 0.15)), stone, false),
+			Vector2(0.3, 0.35), 0.0, 0.006, stone, stone.darkened(0.2), 0.08, 0.25, 0.85)
+	# hall intérieur suggéré : fond chaud, sol, panneau « GUICHETS », plafonniers
+	_glow(Build.box(self, Vector3(0.01, h + 0.4, w), Vector3(fx + 0.01, (h + 0.4) / 2, at.z), Color(0.55, 0.45, 0.35), false), Color(0.6, 0.48, 0.34), 0.55)
+	_tiles(Build.box(self, Vector3(0.012, 0.5, w), Vector3(fx + 0.017, 0.25, at.z), Color.WHITE, false),
+		Vector2(0.25, 0.25), 0.0, 0.01, Color(0.75, 0.7, 0.62), Color(0.5, 0.45, 0.4), 0.1, 0.2, 0.5)
+	_glow(Build.box(self, Vector3(0.012, 0.22, 0.9), Vector3(fx + 0.02, 1.95, at.z + 0.45), Color(0.12, 0.22, 0.45), false), Color(0.12, 0.22, 0.45), 0.4)
+	_lbl("GUICHETS ▸", Vector3(fx + 0.027, 1.95, at.z + 0.45), 24, Color.WHITE, 0.0022)
+	for lz in [-0.7, 0.0, 0.7]:
+		_glow(Build.box(self, Vector3(0.014, 0.05, 0.25), Vector3(fx + 0.02, 2.55, at.z + lz), Color(1, 0.95, 0.85), false), Color(1, 0.95, 0.85), 2.5)
+	# imposte vitrée + « ENTRÉE »
+	_metal(Build.box(self, Vector3(0.08, 0.06, w), Vector3(fx + 0.07, h, at.z), alu, false), 0.35)
+	_glow(Build.box(self, Vector3(0.012, 0.3, w - 0.1), Vector3(fx + 0.06, h + 0.2, at.z), Color(0.05, 0.08, 0.15), false), Color(0.05, 0.08, 0.15), 0.3)
+	_lbl("ENTRÉE", Vector3(fx + 0.075, h + 0.2, at.z), 40, Color(1, 0.95, 0.8), 0.0032)
+	# deux vantaux vitrés
+	for side in [-1, 1]:
+		var cz := at.z + side * w / 4
+		for bar in [[Vector3(0.06, h, 0.06), Vector3(0, h / 2, -w / 4 + 0.03)], [Vector3(0.06, h, 0.06), Vector3(0, h / 2, w / 4 - 0.03)],
+				[Vector3(0.06, 0.18, w / 2), Vector3(0, 0.09, 0)], [Vector3(0.06, 0.06, w / 2), Vector3(0, h - 0.03, 0)]]:
+			_metal(Build.box(self, bar[0], Vector3(fx + 0.07, 0, cz) + bar[1], alu, false), 0.35)
+		var g := Build.box(self, Vector3(0.012, h - 0.25, w / 2 - 0.12), Vector3(fx + 0.07, h / 2 + 0.06, cz), Color(0.8, 0.9, 1.0, 0.15), false)
+		_metal(g, 0.02, Color(0.8, 0.9, 1.0, 0.15), 0.5)
+		# barre de poussée chromée
+		_metal(Build.box(self, Vector3(0.035, 0.035, w / 2 - 0.3), Vector3(fx + 0.13, 1.05, cz), Color(0.82, 0.83, 0.85), false), 0.15)
+		for k in [-1, 1]:
+			_metal(Build.box(self, Vector3(0.06, 0.03, 0.03), Vector3(fx + 0.1, 1.05, cz + k * (w / 4 - 0.18)), Color(0.82, 0.83, 0.85), false), 0.15)
+	# détecteur d'ouverture et paillasson
+	_glow(Build.box(self, Vector3(0.06, 0.05, 0.2), Vector3(fx + 0.1, h + 0.42, at.z), Color(0.15, 0.15, 0.17), false), Color(0.9, 0.2, 0.15), 0.3)
+	_tiles(Build.box(self, Vector3(1.0, 0.015, w - 0.1), Vector3(fx + 0.55, 0.008, at.z), Color.WHITE, false),
+		Vector2(0.02, 2.0), 0.0, 0.006, Color(0.22, 0.22, 0.24), Color(0.1, 0.1, 0.11), 0.05, 0.3, 1.0)

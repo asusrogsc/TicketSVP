@@ -13,6 +13,8 @@ var k := 1.0              # échelle appliquée
 var box: AABB             # boîte englobante dans l'espace du modèle
 var hip := Vector3.ZERO   # articulation de la hanche (espace du modèle)
 var skel: Skeleton3D
+var _fany_rig := false
+var _fany_animator: AnimationPlayer
 var _mzelle_rig := false
 var _mzelle_animator: AnimationPlayer
 var _rel_skel: Transform3D
@@ -32,6 +34,13 @@ func _init(path: String, parent: Node3D, height := 0.0) -> void:
 	var sks := root.find_children("*", "Skeleton3D", true, false)
 	skel = sks[0] if sks.size() > 0 else null
 	if skel:
+		if path.get_file().to_lower() == "fany.glb":
+			var players := root.find_children("*", "AnimationPlayer", true, false)
+			for animator in players:
+				if animator.has_animation("Fany_Seated") and animator.has_animation("Fany_Standing"):
+					_fany_animator = animator as AnimationPlayer
+					_fany_rig = true
+					break
 		_mzelle_rig = skel.find_bone("MzelleRoot") >= 0
 		if _mzelle_rig:
 			var animators := root.find_children("*", "AnimationPlayer", true, false)
@@ -39,7 +48,7 @@ func _init(path: String, parent: Node3D, height := 0.0) -> void:
 				_mzelle_animator = animators[0] as AnimationPlayer
 		_rel_skel = root.global_transform.affine_inverse() * skel.global_transform
 		_find_bones()
-		box = _mzelle_rest_box() if _mzelle_rig else _skinned_box()
+		box = _fany_rest_box() if _fany_rig else (_mzelle_rest_box() if _mzelle_rig else _skinned_box())
 		hip = _rel_skel * skel.get_bone_global_rest(_bones.hip).origin if _bones.has("hip") else box.get_center()
 	else:
 		for mi in root.find_children("*", "MeshInstance3D", true, false):
@@ -49,7 +58,7 @@ func _init(path: String, parent: Node3D, height := 0.0) -> void:
 		_measure_static()
 		hip = Vector3(_body.x, box.position.y + 0.52 * box.size.y, _body.z)
 	if height <= 0.0:
-		height = box.size.y if skel else 1.65
+		height = 1.65 if _fany_rig else (box.size.y if skel else 1.65)
 	k = height / max(box.size.y, 0.001)
 	root.scale = Vector3.ONE * k
 	_cache_key = path
@@ -132,6 +141,13 @@ func _turn(b: int, axis_model: Vector3, deg: float) -> void:
 
 
 func _pose_skeleton(seated: bool) -> void:
+	if _fany_rig and _fany_animator != null:
+		var pose_name := "Fany_Seated" if seated else "Fany_Standing"
+		_fany_animator.play(pose_name)
+		_fany_animator.advance(0.0)
+		_fany_animator.seek(0.0, true)
+		_fany_animator.pause()
+		return
 	if _mzelle_rig and _mzelle_animator != null:
 		var target := "Mzelle_Seated" if seated else "Mzelle_Standing"
 		for animation_name in _mzelle_animator.get_animation_list():
@@ -353,3 +369,38 @@ func _mzelle_rest_box() -> AABB:
 		result = bounds if first else result.merge(bounds)
 		first = false
 	return result
+
+
+## Bornes réelles au repos après skinning, pas les AABB locales non déformées.
+func _fany_rest_box() -> AABB:
+	var low := Vector3(INF, INF, INF)
+	var high := -low
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi.mesh == null or mi.skin == null:
+			continue
+		var transforms: Array[Transform3D] = []
+		for bind in mi.skin.get_bind_count():
+			var bone := mi.skin.get_bind_bone(bind)
+			var bind_name := mi.skin.get_bind_name(bind)
+			if not bind_name.is_empty():
+				bone = skel.find_bone(bind_name)
+			var transform := Transform3D.IDENTITY
+			if bone >= 0:
+				transform = _rel_skel * skel.get_bone_global_rest(bone) * mi.skin.get_bind_pose(bind)
+			transforms.append(transform)
+		for surface in mi.mesh.get_surface_count():
+			var arrays := mi.mesh.surface_get_arrays(surface)
+			var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			var indices: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+			var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+			var influences: int = weights.size() / maxi(vertices.size(), 1)
+			for i in vertices.size():
+				var point := Vector3.ZERO
+				for slot in influences:
+					var index := i * influences + slot
+					if weights[index] > 0 and indices[index] < transforms.size():
+						point += (transforms[indices[index]] * vertices[i]) * weights[index]
+				low = low.min(point)
+				high = high.max(point)
+	return AABB(low, high - low)
