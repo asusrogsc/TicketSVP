@@ -1,5 +1,5 @@
 78098b89c88a74ebe8c20117b8754620
-::res://::1792595092
+::res://::1792595951
 LISEZ-MOI.txt::TextFile::-1::1792428532::0::1::::<><><>0<>0<><>::
 ::res://models/::1792592262
 fany.glb::PackedScene::3542315185202979462::1792431560::1792498985::1::::<><><>0<>0<>53a674fc1f3aa914776e69419fff4c58<>res://.godot/imported/fany.glb-ac6c17d268247d80bbe178c2cca96a63.scn::uid://b355k8shh8mu2::::res://models/fany_2.png<>uid://d0pwmixy3y4ws::::res://models/fany_5.png<>uid://dluepap8l3e0u::::res://models/fany_6.png<>uid://dqorgxhlun21w::::res://models/fany_7.png<>uid://5gccvl1mxqqb::::res://models/fany_8.png<>uid://iinny84q8sje::::res://models/fany_9.png<>uid://dc3dbvce3o0bg::::res://models/fany_11.png<>uid://dvf8qxgtv48e1::::res://models/fany_13.png<>uid://r1armrbasoc4::::res://models/fany_14.png<>uid://bdgtjjiu6v6uj::::res://models/fany_0.png
@@ -85,14 +85,14 @@ bilan.tscn::PackedScene::-1::1792427410::0::1::::<><><>0<>0<><>::res://scripts/b
 bus.tscn::PackedScene::-1::1792427410::0::1::::<><><>0<>0<><>::res://scripts/bus.gd
 gare.tscn::PackedScene::-1::1792496687::0::1::::<><><>0<>0<><>::res://scripts/gare.gd
 hall.tscn::PackedScene::6557207439863880139::1792498375::0::1::::<><><>0<>0<><>::uid://c17v8dxr17jye::::res://scripts/hall.gd
-::res://scripts/::1792594940
+::res://scripts/::1792595943
 autotest.gd::GDScript::8381581898120803958::1792428098::0::1::::<>Node<><>0<>0<><>::
 bilan.gd::GDScript::7592111177285210499::1792496688::0::1::::<>Control<><>0<>0<><>::
 build.gd::GDScript::6987842099350260980::1792428085::0::1::::Build<>RefCounted<><>0<>0<><>::
 bus.gd::GDScript::8160899970462878831::1792500525::0::1::::<>Node3D<><>0<>0<><>::
 bus_visual.gd::GDScript::3158900437316247953::1792443919::0::1::::<>RefCounted<><>0<>0<><>::
 game.gd::GDScript::5680230062248184374::1792496688::0::1::::<>Node<><>0<>0<><>::
-gare.gd::GDScript::7874274502034880075::1792593841::0::1::::<>Node3D<><>0<>0<><>::
+gare.gd::GDScript::7874274502034880075::1792595927::0::1::::<>Node3D<><>0<>0<><>::
 hall.gd::GDScript::6665145572060882136::1792504202::0::1::::<>Node3D<><>0<>0<><>::
 hud.gd::GDScript::2392795391232285535::1792428085::0::1::::Hud<>CanvasLayer<><>0<>0<><>::
 interactable.gd::GDScript::7723161679432427752::1792427161::0::1::::Interactable<>StaticBody3D<><>0<>0<><>::

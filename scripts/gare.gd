@@ -199,28 +199,60 @@ func _build_station_building() -> void:
 
 
 func _window(at: Vector3, size: Vector2, lit: bool) -> void:
-	Build.box(self, Vector3(0.06, size.y + 0.2, size.x + 0.2), at, Color(0.9, 0.88, 0.84), false)                # cadre
-	var g := Build.box(self, Vector3(0.05, size.y, size.x), at + Vector3(0.02, 0, 0), Color(0.45, 0.58, 0.72), false)
+	var stone := Color(0.86, 0.83, 0.77)
+	var white := Color(0.95, 0.94, 0.9)
+	# encadrement en pierre en saillie : donne de la profondeur à la façade
+	_tiles(Build.box(self, Vector3(0.12, 0.18, size.x + 0.4), at + Vector3(0.02, size.y / 2 + 0.09, 0), stone, false),
+		Vector2(0.4, 0.18), 0.0, 0.006, stone, stone.darkened(0.2), 0.08, 0.25, 0.85)          # linteau
+	for side in [-1, 1]:
+		_tiles(Build.box(self, Vector3(0.12, size.y + 0.36, 0.18), at + Vector3(0.02, 0, side * (size.x / 2 + 0.09)), stone, false),
+			Vector2(0.18, 0.3), 0.0, 0.006, stone, stone.darkened(0.2), 0.08, 0.25, 0.85)       # jambages
+	_tiles(Build.box(self, Vector3(0.26, 0.08, size.x + 0.46), at + Vector3(0.09, -size.y / 2 - 0.12, 0), stone, false),
+		Vector2(0.5, 0.08), 0.0, 0.006, stone, stone.darkened(0.2), 0.08, 0.25, 0.8)            # appui
+	# vitre en retrait
+	var g := Build.box(self, Vector3(0.02, size.y, size.x), at, Color(0.45, 0.58, 0.72), false)
 	_night_windows.append(g)
 	if lit:
 		_glow(g, Color(1, 0.86, 0.62), 0.7)
 	else:
-		_metal(g, 0.06, Color(0.4, 0.52, 0.66), 0.4)
-	Build.box(self, Vector3(0.07, 0.04, size.x), at + Vector3(0.03, 0, 0), Color(0.9, 0.88, 0.84), false)        # traverse
-	Build.box(self, Vector3(0.22, 0.07, size.x + 0.3), at + Vector3(0.08, -size.y / 2 - 0.1, 0), Color(0.86, 0.84, 0.8), false)  # appui
+		_metal(g, 0.04, Color(0.32, 0.4, 0.5), 0.5)
+	# rideaux de part et d'autre (couleur au hasard)
+	var curtain: Color = [Color(0.88, 0.82, 0.68), Color(0.6, 0.2, 0.2), Color(0.25, 0.35, 0.55), Color(0.4, 0.5, 0.35)][rng.randi() % 4]
+	for side in [-1, 1]:
+		var c := Build.box(self, Vector3(0.012, size.y * 0.96, size.x * 0.2), at + Vector3(0.014, 0, side * size.x * 0.39), curtain, false)
+		_rough(c, 1.0)
+	# dormant et croisillons blancs
+	for side in [-1, 1]:
+		Build.box(self, Vector3(0.04, size.y, 0.05), at + Vector3(0.03, 0, side * (size.x / 2 - 0.025)), white, false)
+		Build.box(self, Vector3(0.04, 0.05, size.x), at + Vector3(0.03, side * (size.y / 2 - 0.025), 0), white, false)
+	Build.box(self, Vector3(0.035, size.y, 0.045), at + Vector3(0.032, 0, 0), white, false)              # meneau
+	Build.box(self, Vector3(0.035, 0.045, size.x), at + Vector3(0.032, size.y * 0.2, 0), white, false)   # traverse
 
 
 func _bench(at: Vector3) -> void:
-	var wood := Color(0.52, 0.34, 0.18)
+	var wood := Color(0.56, 0.36, 0.19)
+	var iron := Color(0.12, 0.13, 0.14)
+	# assise : 4 lattes en bois veiné
+	for k in 4:
+		_wood(Build.box(self, Vector3(0.085, 0.035, 1.9), at + Vector3(0.13 - k * 0.095, 0.455, 0), wood, false), wood)
+	# dossier incliné : 3 lattes
 	for k in 3:
-		_rough(Build.box(self, Vector3(0.12, 0.04, 1.8), at + Vector3(-0.12 + k * 0.12, 0.45, 0), wood, false), 0.55)
-	for k in 2:
-		_rough(Build.box(self, Vector3(0.04, 0.12, 1.8), at + Vector3(-0.24, 0.62 + k * 0.16, 0), wood, false), 0.55)
-	for dz in [-0.8, 0.8]:
-		_metal(Build.box(self, Vector3(0.45, 0.45, 0.05), at + Vector3(-0.05, 0.22, dz), Color(0.15, 0.15, 0.17), false), 0.45)
-		_metal(Build.box(self, Vector3(0.05, 0.4, 0.05), at + Vector3(-0.25, 0.62, dz), Color(0.15, 0.15, 0.17), false), 0.45)
-	_metal(Build.cylinder(self, 0.2, 0.75, at + Vector3(0, 0.375, 1.3), Color(0.12, 0.32, 0.2)), 0.5)
-	_metal(Build.cylinder(self, 0.21, 0.04, at + Vector3(0, 0.76, 1.3), Color(0.1, 0.1, 0.11)), 0.5)
+		var bs := Build.box(self, Vector3(0.028, 0.095, 1.9), at + Vector3(-0.245 - k * 0.022, 0.6 + k * 0.115, 0), wood, false)
+		bs.rotation_degrees.z = 12
+		_wood(bs, wood)
+	# piètements en fonte (2 bouts avec accoudoirs + 1 central)
+	for dz in [-0.88, 0.0, 0.88]:
+		var p := at + Vector3(0, 0, dz)
+		_metal(Build.box(self, Vector3(0.05, 0.44, 0.05), p + Vector3(0.15, 0.22, 0), iron, false), 0.35)          # pied avant
+		var back := Build.box(self, Vector3(0.05, 0.9, 0.05), p + Vector3(-0.27, 0.45, 0), iron, false)          # pied arrière / montant
+		back.rotation_degrees.z = 9
+		_metal(back, 0.35)
+		_metal(Build.box(self, Vector3(0.48, 0.04, 0.05), p + Vector3(-0.05, 0.42, 0), iron, false), 0.35)       # traverse d'assise
+		_metal(Build.box(self, Vector3(0.4, 0.03, 0.04), p + Vector3(-0.05, 0.12, 0), iron, false), 0.35)        # entretoise basse
+		if dz != 0.0:
+			_metal(Build.box(self, Vector3(0.46, 0.035, 0.07), p + Vector3(-0.02, 0.68, 0), iron, false), 0.3)   # accoudoir
+			_metal(Build.box(self, Vector3(0.035, 0.24, 0.035), p + Vector3(0.18, 0.56, 0), iron, false), 0.3)   # montant d'accoudoir
+	_bin(at + Vector3(0.02, 0, 1.35))
 
 
 func _windscreen(at: Vector3) -> void:
@@ -250,14 +282,37 @@ func _vending_machine(at: Vector3) -> void:
 
 
 func _map_panel(at: Vector3) -> void:
-	Build.box(self, Vector3(0.08, 1.3, 2.0), at, Color(0.2, 0.22, 0.25), false)
-	_glow(Build.box(self, Vector3(0.02, 1.15, 1.85), at + Vector3(0.05, 0, 0), Color(0.96, 0.96, 0.94), false), Color(1, 1, 0.97), 0.35)
-	Build.box(self, Vector3(0.03, 0.04, 1.5), at + Vector3(0.07, 0.1, 0), line.color, false)
-	Build.box(self, Vector3(0.03, 0.04, 1.2), at + Vector3(0.07, -0.25, 0.1), Color(0.9, 0.35, 0.2), false)
-	for k in 5:
-		Build.box(self, Vector3(0.035, 0.09, 0.09), at + Vector3(0.075, 0.1, -0.7 + k * 0.35), Color.WHITE, false)
-	var l := Build.label3d(self, "PLAN DU RÉSEAU", Vector3(at.x + 0.08, at.y + 0.45, at.z), 34, Color(0.1, 0.12, 0.2))
-	l.rotation_degrees.y = 90
+	var px := at.x
+	# caisson en saillie avec cadre alu
+	_metal(Build.box(self, Vector3(0.08, 1.5, 2.3), Vector3(px - 0.03, at.y, at.z), Color(0.7, 0.72, 0.75), false), 0.3)
+	_glow(Build.box(self, Vector3(0.02, 1.36, 2.16), Vector3(px + 0.02, at.y, at.z), Color(0.97, 0.97, 0.95), false), Color(1, 1, 0.98), 0.45)
+	# bandeau titre
+	_glow(Build.box(self, Vector3(0.022, 0.22, 2.16), Vector3(px + 0.023, at.y + 0.57, at.z), Color(0.12, 0.22, 0.45), false), Color(0.12, 0.22, 0.45), 0.2)
+	_lbl("PLAN DU RÉSEAU", Vector3(px + 0.04, at.y + 0.57, at.z), 40, Color.WHITE, 0.0032)
+	# ligne 1 : tracé + arrêts (de gauche à droite pour le lecteur, donc vers -Z)
+	var stops: Array = line.stops
+	var n := stops.size()
+	var ly := at.y + 0.18
+	_glow(Build.box(self, Vector3(0.024, 0.045, 1.7), Vector3(px + 0.03, ly, at.z), line.color, false), line.color, 0.3)
+	_lbl("%s %s" % [line.type, line.name], Vector3(px + 0.04, ly + 0.2, at.z + 0.65), 26, line.color.darkened(0.3), 0.0026)
+	for i in n:
+		var z := at.z + 0.85 - 1.7 * float(i) / maxf(n - 1, 1)
+		var dot := Build.cylinder(self, 0.045, 0.02, Vector3(px + 0.042, ly, z), Color.WHITE)
+		dot.rotation_degrees.z = 90
+		Build.cylinder(self, 0.03, 0.022, Vector3(px + 0.043, ly, z), line.color.darkened(0.2)).rotation_degrees.z = 90
+		var nm: String = stops[i].get("nom", "?") if stops[i] is Dictionary else str(stops[i])
+		_lbl(nm, Vector3(px + 0.04, ly + (-0.11 if i % 2 == 0 else 0.1), z), 18, Color(0.15, 0.15, 0.2), 0.0021)
+	# « Vous êtes ici » au terminus
+	var here_z := at.z + 0.85 - 1.7
+	Build.cylinder(self, 0.06, 0.02, Vector3(px + 0.045, ly, here_z), Color(0.9, 0.15, 0.15)).rotation_degrees.z = 90
+	_lbl("▼ VOUS ÊTES ICI", Vector3(px + 0.04, ly + 0.22, here_z + 0.12), 20, Color(0.85, 0.12, 0.12), 0.0022)
+	# ligne 2 en pointillés (bientôt)
+	var l2y := at.y - 0.25
+	for k in 9:
+		Build.box(self, Vector3(0.024, 0.035, 0.12), Vector3(px + 0.03, l2y, at.z + 0.8 - k * 0.2), Color(0.9, 0.35, 0.2), false)
+	_lbl("Tram Ligne 2 — Port → Stade (bientôt)", Vector3(px + 0.04, l2y - 0.12, at.z), 18, Color(0.6, 0.25, 0.15), 0.0021)
+	# légende
+	_lbl("Réseau Azimov  ·  Validez à chaque montée  ·  Infos : appli Réseau", Vector3(px + 0.04, at.y - 0.6, at.z), 16, Color(0.4, 0.4, 0.45), 0.0019)
 
 
 func _planter(at: Vector3) -> void:
@@ -1299,3 +1354,53 @@ func _flower_basket(pole: Vector3, steel: Color) -> void:
 		for lf in int(length / 0.08):
 			var leaf := Build.box(self, Vector3(0.05, 0.012, 0.035), base - Vector3(0, 0.06 + lf * 0.08, 0), Color(0.24, 0.5 + rng.randf() * 0.1, 0.2), false)
 			leaf.rotation_degrees = Vector3(rng.randf_range(-30, 30), rng.randf() * 360, rng.randf_range(-20, 20))
+
+
+
+## Texte collé sur la façade de la gare (tourné vers le quai, +X), sans contour.
+func _lbl(t: String, pos: Vector3, font: int, col: Color, px_size: float) -> Label3D:
+	var l := Build.label3d(self, t, pos, font, col)
+	l.rotation_degrees.y = 90
+	l.pixel_size = px_size
+	l.outline_size = 0
+	return l
+
+
+## Bois veiné (fil dans la longueur des lattes, axe Z).
+func _wood(n: Node, col: Color) -> void:
+	_tiles(n, Vector2(0.012, 1.1), 0.5, 0.0, col, col, 0.35, 0.45, 0.55)
+
+
+## Poubelle de ville : corps perforé, cerclages, couvercle bombé avec ouverture, logo.
+func _bin(at: Vector3) -> void:
+	var green := Color(0.13, 0.3, 0.2)
+	var body := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.22
+	cm.bottom_radius = 0.2
+	cm.height = 0.7
+	body.mesh = cm
+	body.position = at + Vector3(0, 0.4, 0)
+	add_child(body)
+	_tiles(body, Vector2(0.035, 0.035), 0.5, 0.014, green, Color(0.03, 0.05, 0.04), 0.05, 0.15, 0.45)   # tôle perforée
+	for y in [0.07, 0.42, 0.75]:
+		var ring := Build.cylinder(self, 0.225, 0.035, at + Vector3(0, y, 0), green.darkened(0.3))
+		_metal(ring, 0.35)
+	var lid := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.23
+	sm.height = 0.23
+	sm.is_hemisphere = true
+	lid.mesh = sm
+	lid.position = at + Vector3(0, 0.77, 0)
+	lid.material_override = Build.mat(green.darkened(0.15), 0.4)
+	add_child(lid)
+	var slot := Build.box(self, Vector3(0.05, 0.08, 0.22), at + Vector3(0.18, 0.84, 0), Color(0.02, 0.02, 0.02), false)
+	slot.rotation_degrees.z = 35
+	var badge := Build.cylinder(self, 0.06, 0.005, at + Vector3(0.222, 0.5, 0), Color(0.95, 0.95, 0.9))
+	badge.rotation_degrees.z = 90
+	_glow(badge, Color(0.9, 0.9, 0.85), 0.15)
+	var logo := Build.label3d(self, "♻", at + Vector3(0.227, 0.5, 0), 40, Color(0.15, 0.45, 0.25))
+	logo.rotation_degrees.y = 90
+	logo.pixel_size = 0.002
+	logo.outline_size = 0
