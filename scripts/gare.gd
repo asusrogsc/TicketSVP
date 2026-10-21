@@ -293,7 +293,7 @@ func _ticket_machine(at: Vector3) -> void:
 	var on_screen := func(y: float, lift: float) -> float:
 		return fx + 0.054 + lift + (y - 1.325) * tan(deg_to_rad(10.0))
 	var ui := _lbl("Choisissez votre titre", Vector3(on_screen.call(1.445, 0.004), 1.445, at.z), 20, Color.WHITE, 0.0018)
-	ui.rotation_degrees.z = -10
+	ui.rotation_degrees.x = 10          # incliné comme l'écran (autour de l'axe du texte, pas en biais)
 	var opts := [["Ticket 1 trajet   1,80 €", Color(0.3, 0.8, 0.5)], ["Carnet 10   15,00 €", Color(0.95, 0.75, 0.2)], ["Abonnement   45,00 €", Color(0.9, 0.4, 0.3)]]
 	for k in 3:
 		var by := 1.375 - k * 0.07
@@ -301,7 +301,7 @@ func _ticket_machine(at: Vector3) -> void:
 		btn.rotation_degrees.z = -10
 		_glow(btn, opts[k][1], 0.6)
 		var bl := _lbl(opts[k][0], Vector3(on_screen.call(by, 0.006), by, at.z), 16, Color(0.08, 0.08, 0.1), 0.0016)
-		bl.rotation_degrees.z = -10
+		bl.rotation_degrees.x = 10
 	# tablette de commande en saillie
 	_metal(Build.box(self, Vector3(0.1, 0.03, 0.66), Vector3(fx + 0.05, 1.1, at.z), Color(0.7, 0.72, 0.75), false), 0.25)
 	_metal(Build.box(self, Vector3(0.05, 0.14, 0.12), Vector3(fx + 0.025, 1.0, at.z + 0.22), Color(0.15, 0.15, 0.17), false), 0.3)   # lecteur de carte
