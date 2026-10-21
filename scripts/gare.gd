@@ -3,6 +3,9 @@ extends Node3D
 ## Le rapport signé ouvre la porte du bus retour ; les passagers du quai montent avec toi.
 
 const QUALITY_HIGH := true          # passe à false si le PC rame
+const SOIR := true                  # ambiance fin de journée (soleil couchant, tout s'allume)
+const PLUIE := true                 # pluie, sol mouillé et flaques
+const BUS_ARRIVAL_TIME := 7.0       # durée de l'arrivée du bus après le rapport (s)
 const WAIT_NORMAL_MIN := 8          # passagers ordinaires sur le quai
 const WAIT_NORMAL_MAX := 12
 const WAIT_SPECIAL_MIN := 2         # personnages spéciaux sur le quai
@@ -49,6 +52,10 @@ func _ready() -> void:
 	player.hud = hud
 	add_child(player)
 	player.interacted.connect(_on_interact)
+	_apply_ambiance()
+	if PLUIE:
+		_build_rain()
+	_start_idle_behaviours()
 	_update_info()
 	hud.show_toast("Terminus %s — Va faire ton rapport au chef de gare" % line.to, Color(1, 0.95, 0.7), 6.0)
 
@@ -194,6 +201,7 @@ func _build_station_building() -> void:
 func _window(at: Vector3, size: Vector2, lit: bool) -> void:
 	Build.box(self, Vector3(0.06, size.y + 0.2, size.x + 0.2), at, Color(0.9, 0.88, 0.84), false)                # cadre
 	var g := Build.box(self, Vector3(0.05, size.y, size.x), at + Vector3(0.02, 0, 0), Color(0.45, 0.58, 0.72), false)
+	_night_windows.append(g)
 	if lit:
 		_glow(g, Color(1, 0.86, 0.62), 0.7)
 	else:
@@ -294,6 +302,7 @@ func _build_backdrop() -> void:
 				var wz := -w * 0.46 + (c + 0.5) * w * 0.92 / cols
 				Build.box(b, Vector3(0.06, 1.25, 1.05), Vector3(-5.02, fy, wz), Color(0.92, 0.9, 0.86), false)
 				var g := Build.box(b, Vector3(0.06, 1.1, 0.9), Vector3(-5.05, fy, wz), Color(0.42, 0.55, 0.7), false)
+				_night_windows.append(g)
 				if rng.randf() < 0.2:
 					_glow(g, Color(1, 0.86, 0.6), 0.5)
 				else:
@@ -327,10 +336,24 @@ func _build_parked_bus() -> void:
 	# le bus du retour, garé le long du quai, avant tourné vers l'arrivée du joueur (+Z), portes côté quai (-X)
 	var body: Color = line.color
 	var bx := 5.6
+	_bus_group = Node3D.new()
+	_bus_group.position.z = -90.0          # le bus n'est pas encore là : il arrivera après le rapport
+	add_child(_bus_group)
 	var root := Node3D.new()
 	root.position = Vector3(bx, -0.3, 0)
-	add_child(root)
+	_bus_group.add_child(root)
 	var L := 12.0; var W := 2.5; var H := 3.0
+	# phares qui éclairent la route (bien visibles le soir sous la pluie)
+	for hx in [-0.95, 0.95]:
+		var hl := SpotLight3D.new()
+		hl.position = Vector3(hx, 0.95, L / 2 + 0.1)
+		hl.rotation_degrees = Vector3(-6, 180, 0)
+		hl.light_color = Color(1, 0.97, 0.88)
+		hl.light_energy = 4.0
+		hl.spot_range = 25.0
+		hl.spot_angle = 28.0
+		hl.light_volumetric_fog_energy = 1.5
+		root.add_child(hl)
 	var glass := Color(0.12, 0.16, 0.2)
 	# caisse : jupe sombre, corps couleur ligne, toit blanc, bandeau de livrée
 	Build.box(root, Vector3(W, 0.45, L), Vector3(0, 0.55, 0), Color(0.15, 0.15, 0.17), true)
@@ -377,21 +400,28 @@ func _build_parked_bus() -> void:
 	bus_door = Interactable.new()
 	bus_door.position = Vector3(bx - W / 2 - 0.02, 1.15, 0.5)
 	bus_door.action = _try_board
-	add_child(bus_door)
+	_bus_group.add_child(bus_door)
 	Build.box(bus_door, Vector3(0.06, 2.3, 1.3), Vector3.ZERO, Color(0.1, 0.1, 0.11))
 	for k in [-1, 1]:
-		_metal(Build.box(bus_door, Vector3(0.03, 1.9, 0.55), Vector3(-0.03, 0.1, k * 0.3), glass, false), 0.05, glass, 0.6)
+		var panel := Build.box(bus_door, Vector3(0.03, 1.9, 0.55), Vector3(-0.03, 0.1, k * 0.3), glass, false)
+		_metal(panel, 0.05, glass, 0.6)
+		panel.set_meta("dir", k)
+		_door_panels.append(panel)
 	_update_door()
 
 
 func _update_door() -> void:
-	bus_door.label = ("Monter dans le bus retour → " + back_line.to) if report_done \
+	bus_door.label = ("Monter dans le bus retour → " + back_line.to) if _bus_ready \
 		else "Bus retour (fais d'abord ton rapport au chef de gare)"
 
 
 func _update_board() -> void:
-	board_label.text = "QUAI 1   ·   %s %s  →  %s\n%s" % [line.type, line.name, back_line.to,
-		"Embarquement en cours" if report_done else "Départ après le rapport de service"]
+	var status := "Départ après le rapport de service"
+	if _bus_ready:
+		status = "À quai — embarquement en cours"
+	elif report_done:
+		status = "Bus en approche..."
+	board_label.text = "QUAI 1   ·   %s %s  →  %s\n%s" % [line.type, line.name, back_line.to, status]
 
 
 # ------------------------------------------------------------------ chef de gare
@@ -504,13 +534,17 @@ func _sign_report() -> void:
 	_update_door()
 	_update_board()
 	_update_info()
-	hud.show_toast("Chef de gare : « Rapport signé. Ton bus pour %s est à quai, monte quand tu veux ! »" % back_line.to,
+	hud.show_toast("Chef de gare : « Rapport signé. Ton bus pour %s arrive, le voilà ! »" % back_line.to,
 		Color(0.7, 1, 0.75), 6.0)
+	_bring_bus()
 
 
 func _try_board() -> void:
 	if not report_done:
 		hud.show_toast("Fais d'abord ton rapport au chef de gare !", Color(1, 0.8, 0.5))
+		return
+	if not _bus_ready:
+		hud.show_toast("Le bus arrive, patiente une seconde...", Color(1, 0.9, 0.6))
 		return
 	player.frozen = true
 	hud.show_toast("Embarquement... Les voyageurs du quai montent avec toi.", Color(0.8, 0.95, 1), 3.0)
@@ -799,24 +833,9 @@ func _build_station_extras() -> void:
 		t.outline_size = 0
 		k += 1
 
-	# suspensions de fleurs aux poteaux de la marquise (côté voie)
+	# suspensions fleuries, accrochées par une potence au poteau (côté voie)
 	for z in range(-15, 16, 6):
-		var basket := Build.cylinder(self, 0.22, 0.2, Vector3(2.9, 2.6, z), Color(0.35, 0.25, 0.15))
-		_rough(basket, 0.9)
-		_metal(Build.cylinder(self, 0.008, 0.5, Vector3(2.9, 2.95, z), steel), 0.4)
-		for f in 7:
-			var fl := MeshInstance3D.new()
-			var sm := SphereMesh.new()
-			sm.radius = rng.randf_range(0.07, 0.12)
-			sm.height = sm.radius * 1.6
-			fl.mesh = sm
-			var c: Color = [Color(0.85, 0.2, 0.35), Color(0.95, 0.75, 0.2), Color(0.95, 0.95, 0.95), Color(0.3, 0.55, 0.25)][f % 4]
-			fl.material_override = Build.mat(c, 0.9)
-			fl.position = Vector3(2.9 + rng.randf_range(-0.18, 0.18), 2.72 + rng.randf_range(-0.05, 0.08), z + rng.randf_range(-0.18, 0.18))
-			add_child(fl)
-		for f in 3:   # feuillage qui retombe
-			var hang := Build.box(self, Vector3(0.04, rng.randf_range(0.25, 0.45), 0.08), Vector3(2.9 + rng.randf_range(-0.2, 0.2), 2.4, z + rng.randf_range(-0.2, 0.2)), Color(0.25, 0.5, 0.22), false)
-			_rough(hang, 1.0)
+		_flower_basket(Vector3(2.9, 0, z), steel)
 
 	# petite terrasse de café au bout du quai
 	var cafe_z := 17.5
@@ -863,6 +882,7 @@ func _build_station_extras() -> void:
 				var wx := x + 1.0
 				while wx < x + w - 1.0:
 					var g := Build.box(self, Vector3(1.0, 1.2, 0.05), Vector3(wx + 0.5, fy, ez + end * 4 - end * 4.02), Color(0.42, 0.55, 0.7), false)
+					_night_windows.append(g)
 					if rng.randf() < 0.2:
 						_glow(g, Color(1, 0.86, 0.6), 0.5)
 					else:
@@ -978,3 +998,304 @@ func _shop_window(at: Vector3, size: Vector2, _dir: int, kind: String) -> void:
 	for side in [-1, 1]:
 		Build.box(self, Vector3(0.05, size.y + 0.1, 0.05), Vector3(at.x + 0.03, at.y, at.z + side * (size.x / 2 + 0.025)), Color(0.12, 0.12, 0.13), false)
 		Build.box(self, Vector3(0.05, 0.05, size.x + 0.1), Vector3(at.x + 0.03, at.y + side * (size.y / 2 + 0.025), at.z), Color(0.12, 0.12, 0.13), false)
+
+
+# ------------------------------------------------------------------ 3e passe : soir, pluie, vie, arrivée du bus
+
+var _bus_group: Node3D
+var _bus_ready := false
+var _door_panels: Array = []
+var _rain: GPUParticles3D
+
+
+## Le bus arrive en freinant, s'arrête le long du quai et ouvre ses portes.
+func _bring_bus() -> void:
+	var tw := create_tween()
+	tw.tween_property(_bus_group, "position:z", 0.0, BUS_ARRIVAL_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.5)
+	for panel in _door_panels:
+		tw.parallel().tween_property(panel, "position:z", panel.position.z + 0.5 * panel.get_meta("dir"), 0.8)
+	tw.tween_callback(func():
+		_bus_ready = true
+		_update_door()
+		_update_board()
+		hud.show_toast("Le bus pour %s est à quai. Monte quand tu veux !" % back_line.to, Color(0.8, 0.95, 1), 4.0)
+		# les voyageurs se tournent vers le bus
+		for p in waiting:
+			if p.has_meta("idle_tween"):
+				(p.get_meta("idle_tween") as Tween).kill()
+			var tt := create_tween()
+			tt.tween_property(p, "rotation_degrees", Vector3(0, -90, 0), 0.6)
+	)
+
+
+## Coucher de soleil : lumière orange rasante, ciel dégradé, toutes les lumières allumées.
+func _apply_ambiance() -> void:
+	if not SOIR and not PLUIE:
+		return
+	var env: Environment = null
+	for c in find_children("*", "WorldEnvironment", true, false):
+		env = (c as WorldEnvironment).environment
+	for l in find_children("*", "DirectionalLight3D", true, false):
+		var sun := l as DirectionalLight3D
+		if SOIR:
+			sun.rotation_degrees = Vector3(-14, 70, 0)        # bas sur l'horizon, depuis le quartier d'en face
+			sun.light_color = Color(1, 0.58, 0.32)
+			sun.light_energy = 0.35 if PLUIE else 1.1
+		else:
+			sun.light_energy = 0.4
+	if env:
+		if env.sky and env.sky.sky_material is ProceduralSkyMaterial:
+			var sm: ProceduralSkyMaterial = env.sky.sky_material
+			if PLUIE:
+				sm.sky_top_color = Color(0.16, 0.18, 0.26) if SOIR else Color(0.4, 0.44, 0.5)
+				sm.sky_horizon_color = Color(0.55, 0.42, 0.38) if SOIR else Color(0.6, 0.62, 0.65)
+			else:
+				sm.sky_top_color = Color(0.15, 0.18, 0.4)
+				sm.sky_horizon_color = Color(0.98, 0.55, 0.32)
+			sm.ground_horizon_color = sm.sky_horizon_color
+		env.ambient_light_energy = 0.35 if SOIR else 0.5
+		env.fog_light_color = Color(0.55, 0.45, 0.45) if SOIR else Color(0.6, 0.63, 0.68)
+		env.fog_density = 0.012 if PLUIE else 0.005
+		env.ssr_enabled = true                # reflets dans les flaques et le sol mouillé
+		env.ssr_max_steps = 64
+		env.volumetric_fog_enabled = QUALITY_HIGH and SOIR
+		env.volumetric_fog_density = 0.01
+		env.volumetric_fog_albedo = Color(0.9, 0.85, 0.85)
+		env.glow_intensity = 0.7
+	if SOIR:
+		# fenêtres : environ 6 sur 10 allumées, teintes chaudes variées
+		for g in _night_windows:
+			if is_instance_valid(g) and rng.randf() < 0.6:
+				var warm := Color(1, rng.randf_range(0.7, 0.9), rng.randf_range(0.45, 0.65))
+				_glow(g, warm, rng.randf_range(0.6, 1.4))
+		# lampes de la marquise plus fortes, lampadaires d'en face allumés
+		for l in find_children("*", "OmniLight3D", true, false):
+			var ol := l as OmniLight3D
+			ol.light_energy = ol.light_energy * 1.6
+		for lz in range(-36, 37, 12):
+			var o := OmniLight3D.new()
+			o.position = Vector3(11.4, 5.6, lz)
+			o.light_color = Color(1, 0.8, 0.5)
+			o.light_energy = 2.0
+			o.omni_range = 12.0
+			o.shadow_enabled = false
+			add_child(o)
+	if PLUIE:
+		# chaussée, trottoir et pelouse mouillés : plus sombres et brillants
+		for m in find_children("*", "MeshInstance3D", true, false):
+			var mi := m as MeshInstance3D
+			if mi.material_override is ShaderMaterial and mi.global_position.y <= -0.2 and absf(mi.global_position.x) < 30:
+				var sm2: ShaderMaterial = mi.material_override
+				if sm2.shader == _tile_shader:
+					var col: Color = sm2.get_shader_parameter("base_color")
+					sm2.set_shader_parameter("base_color", col.darkened(0.3))
+					sm2.set_shader_parameter("rough", 0.18)
+		_puddles()
+
+
+func _puddles() -> void:
+	var road_mat := StandardMaterial3D.new()
+	road_mat.albedo_color = Color(0.09, 0.09, 0.1)
+	road_mat.roughness = 0.0
+	road_mat.metallic_specular = 1.0
+	var tile_mat := StandardMaterial3D.new()
+	tile_mat.albedo_color = Color(0.3, 0.3, 0.31)
+	tile_mat.roughness = 0.0
+	tile_mat.metallic_specular = 1.0
+	for i in 18:
+		var p := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = rng.randf_range(0.25, 0.7) if i < 14 else rng.randf_range(0.15, 0.35)
+		cm.bottom_radius = cm.top_radius
+		cm.height = 0.004
+		cm.radial_segments = 24
+		p.mesh = cm
+		p.scale = Vector3(rng.randf_range(0.7, 1.3), 1, rng.randf_range(0.8, 1.8))
+		if i < 14:   # sur la voie des bus, surtout près du caniveau
+			p.material_override = road_mat
+			p.position = Vector3(rng.randf_range(4.4, 6.5) if i % 2 == 0 else rng.randf_range(6.5, 11.5), -0.297, rng.randf_range(-30, 30))
+		else:        # petites flaques aux bouts du quai, hors de l'abri
+			p.material_override = tile_mat
+			p.position = Vector3(rng.randf_range(0.5, 3.0), 0.003, rng.randf_range(17.0, 19.5) * (1 if i % 2 == 0 else -1))
+		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(p)
+	# sonde de réflexion : les flaques et le sol mouillé reflètent les lampes, les vitrines et le bus
+	var probe := ReflectionProbe.new()
+	probe.size = Vector3(30, 10, 60)
+	probe.position = Vector3(2, 3, 0)
+	probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	probe.intensity = 0.9
+	add_child(probe)
+
+
+## Pluie : trois zones d'émission autour de l'abri (voie + rue d'en face, et les deux bouts du quai).
+## Rien n'est émis au-dessus de la marquise ni du bâtiment, donc il ne pleut jamais dessous.
+func _build_rain() -> void:
+	var drop := QuadMesh.new()
+	drop.size = Vector2(0.008, 0.32)
+	var dm := StandardMaterial3D.new()
+	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dm.albedo_color = Color(0.7, 0.75, 0.85, 0.22)
+	dm.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+	dm.billboard_keep_scale = true
+	drop.material = dm
+	var q := 1.0 if QUALITY_HIGH else 0.45
+	# [centre de la zone, demi-taille x/z, nombre de gouttes]
+	var zones := [
+		[Vector3(14.0, 14, 0), Vector2(10.2, 30.0), int(9000 * q)],      # voie des bus + quartier d'en face (x 3.8 → 24)
+		[Vector3(-2.0, 14, 24.0), Vector2(8.0, 7.6), int(2500 * q)],     # bout du quai côté café (z 16.4 → 31.6)
+		[Vector3(-2.0, 14, -24.0), Vector2(8.0, 7.6), int(2500 * q)],    # autre bout du quai
+	]
+	for zdef in zones:
+		var r := GPUParticles3D.new()
+		r.amount = zdef[2]
+		r.lifetime = 0.95                      # le temps de tomber de 14 m : les gouttes disparaissent au sol
+		r.position = zdef[0]
+		r.visibility_aabb = AABB(Vector3(-zdef[1].x - 1, -16, -zdef[1].y - 1), Vector3(zdef[1].x * 2 + 2, 18, zdef[1].y * 2 + 2))
+		var pm := ParticleProcessMaterial.new()
+		pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+		pm.emission_box_extents = Vector3(zdef[1].x, 0.3, zdef[1].y)
+		pm.direction = Vector3(0, -1, 0)
+		pm.spread = 0.0
+		pm.initial_velocity_min = 11.0
+		pm.initial_velocity_max = 13.0
+		pm.gravity = Vector3(0, -9.8, 0)
+		r.process_material = pm
+		r.draw_pass_1 = drop
+		r.preprocess = 1.0
+		add_child(r)
+	_rain = null
+	# éclaboussures sur la voie
+	var splash := GPUParticles3D.new()
+	splash.amount = int(500 * q)
+	splash.lifetime = 0.25
+	splash.position = Vector3(8.0, -0.28, 0)
+	var sp := ParticleProcessMaterial.new()
+	sp.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	sp.emission_box_extents = Vector3(4.0, 0.0, 30.0)
+	sp.direction = Vector3(0, 1, 0)
+	sp.spread = 40.0
+	sp.initial_velocity_min = 0.6
+	sp.initial_velocity_max = 1.2
+	sp.gravity = Vector3(0, -9.8, 0)
+	sp.scale_min = 0.5
+	sp.scale_max = 1.0
+	splash.process_material = sp
+	var sm := SphereMesh.new()
+	sm.radius = 0.012
+	sm.height = 0.024
+	var sm_mat := StandardMaterial3D.new()
+	sm_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	sm_mat.albedo_color = Color(0.8, 0.85, 0.95, 0.35)
+	sm.material = sm_mat
+	splash.draw_pass_1 = sm
+	add_child(splash)
+
+
+func _process(_delta: float) -> void:
+	if player:
+		for pg in _pigeons:
+			if pg.has_meta("flying"):
+				continue
+			if pg.global_position.distance_to(player.global_position) < 1.6:
+				_fly_away(pg)
+
+
+## Le pigeon s'envole quand on approche, puis se repose plus loin.
+func _fly_away(pg: Node3D) -> void:
+	pg.set_meta("flying", true)
+	var away := (pg.global_position - player.global_position)
+	away.y = 0
+	away = away.normalized() if away.length() > 0.01 else Vector3(1, 0, 0)
+	var land := Vector3(rng.randf_range(-1.5, 2.5), 0, clampf(pg.position.z + rng.randf_range(-8, 8), -14.0, 14.0))
+	var tw := create_tween()
+	tw.tween_property(pg, "rotation_degrees:y", rad_to_deg(atan2(-away.x, -away.z)), 0.1)
+	tw.tween_property(pg, "position", pg.position + away * 4.0 + Vector3(0, 2.6, 0), 0.9).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(pg, "scale", Vector3(1.3, 0.8, 1.3), 0.15).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(pg, "scale", Vector3.ONE, 0.2)
+	tw.tween_interval(rng.randf_range(3.0, 6.0))
+	tw.tween_property(pg, "position", land + Vector3(0, 2.0, 0), 0.01)
+	tw.tween_property(pg, "position", land, 1.2).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	tw.tween_callback(func(): pg.remove_meta("flying"))
+
+
+## Petits gestes des voyageurs qui attendent : ils se balancent, regardent autour d'eux, vers le panneau.
+func _start_idle_behaviours() -> void:
+	for p in waiting:
+		var base := p.rotation_degrees.y
+		var tw := create_tween().set_loops()
+		tw.tween_interval(rng.randf_range(2.0, 6.0))
+		if rng.randf() < 0.5:
+			# regarde vers le panneau des départs / vers le bout du quai
+			var look := base + rng.randf_range(-70, 70)
+			tw.tween_property(p, "rotation_degrees:y", look, 0.8).set_trans(Tween.TRANS_SINE)
+			tw.tween_interval(rng.randf_range(1.5, 3.5))
+			tw.tween_property(p, "rotation_degrees:y", base, 0.8).set_trans(Tween.TRANS_SINE)
+		else:
+			# se balance d'un pied sur l'autre
+			tw.tween_property(p, "rotation_degrees:z", 2.0, 0.7).set_trans(Tween.TRANS_SINE)
+			tw.tween_property(p, "rotation_degrees:z", -2.0, 1.2).set_trans(Tween.TRANS_SINE)
+			tw.tween_property(p, "rotation_degrees:z", 0.0, 0.7).set_trans(Tween.TRANS_SINE)
+		p.set_meta("idle_tween", tw)
+
+
+var _night_windows: Array = []
+
+
+## Suspension fleurie : potence fixée au poteau, chaîne, panier tressé, fleurs et feuillage retombant.
+func _flower_basket(pole: Vector3, steel: Color) -> void:
+	var at := pole + Vector3(0.5, 2.62, 0)            # 50 cm à côté du poteau, côté voie
+	# potence + jambe de force
+	_metal(Build.box(self, Vector3(0.6, 0.04, 0.04), pole + Vector3(0.3, 3.15, 0), steel, false), 0.4)
+	var brace := Build.box(self, Vector3(0.03, 0.4, 0.03), pole + Vector3(0.18, 2.97, 0), steel, false)
+	brace.rotation_degrees.z = 40
+	_metal(brace, 0.4)
+	_metal(Build.cylinder(self, 0.006, 0.42, at + Vector3(0, 0.33, 0), Color(0.3, 0.3, 0.32)), 0.3)   # chaîne
+	# panier tressé (tronc de cône) + bord de mousse
+	var basket := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.24
+	cm.bottom_radius = 0.13
+	cm.height = 0.2
+	basket.mesh = cm
+	basket.position = at
+	add_child(basket)
+	_tiles(basket, Vector2(0.03, 0.025), 0.5, 0.004, Color(0.45, 0.32, 0.18), Color(0.25, 0.17, 0.1), 0.3, 0.3, 0.9)
+	var moss := MeshInstance3D.new()
+	var mm := CylinderMesh.new()
+	mm.top_radius = 0.235
+	mm.bottom_radius = 0.235
+	mm.height = 0.03
+	moss.mesh = mm
+	moss.material_override = Build.mat(Color(0.22, 0.38, 0.18), 1.0)
+	moss.position = at + Vector3(0, 0.1, 0)
+	add_child(moss)
+	# dôme de petites fleurs
+	var cols := [Color(0.88, 0.18, 0.38), Color(0.98, 0.78, 0.2), Color(0.97, 0.97, 0.97), Color(0.6, 0.3, 0.8), Color(0.95, 0.45, 0.2)]
+	for f in 26:
+		var ang := rng.randf() * TAU
+		var rad := sqrt(rng.randf()) * 0.22
+		var fl := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = rng.randf_range(0.03, 0.05)
+		sm.height = sm.radius * 1.4
+		sm.radial_segments = 8
+		sm.rings = 4
+		fl.mesh = sm
+		var c: Color = cols[rng.randi() % cols.size()] if f % 3 != 0 else Color(0.25, 0.5, 0.22)
+		fl.material_override = Build.mat(c, 0.85)
+		fl.position = at + Vector3(cos(ang) * rad, 0.12 + (0.22 - rad) * 0.5, sin(ang) * rad)
+		add_child(fl)
+	# feuillage qui retombe : tiges fines avec petites feuilles
+	for t in 7:
+		var ang := TAU * t / 7.0 + rng.randf_range(-0.2, 0.2)
+		var base := at + Vector3(cos(ang) * 0.22, 0.08, sin(ang) * 0.22)
+		var length := rng.randf_range(0.3, 0.65)
+		var stem := Build.cylinder(self, 0.006, length, base - Vector3(0, length / 2, 0), Color(0.2, 0.42, 0.18))
+		stem.rotation_degrees = Vector3(rng.randf_range(-8, 8), 0, rng.randf_range(-8, 8))
+		for lf in int(length / 0.08):
+			var leaf := Build.box(self, Vector3(0.05, 0.012, 0.035), base - Vector3(0, 0.06 + lf * 0.08, 0), Color(0.24, 0.5 + rng.randf() * 0.1, 0.2), false)
+			leaf.rotation_degrees = Vector3(rng.randf_range(-30, 30), rng.randf() * 360, rng.randf_range(-20, 20))
