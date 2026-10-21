@@ -1,5 +1,5 @@
 78098b89c88a74ebe8c20117b8754620
-::res://::1792618409
+::res://::1792620276
 LISEZ-MOI.txt::TextFile::-1::1792428532::0::1::::<><><>0<>0<><>::
 ::res://models/::1792614510
 fany.glb::PackedScene::3542315185202979462::1792608745::1792608753::1::::<><><>0<>0<>53a674fc1f3aa914776e69419fff4c58<>res://.godot/imported/fany.glb-ac6c17d268247d80bbe178c2cca96a63.scn::uid://bahq0ousi8im3::::res://models/fany_Image_0.png<>uid://nl188ixibxt1::::res://models/fany_Image_2.png<>uid://cc36r4k7q32p8::::res://models/fany_Image_3.png<>uid://cakpn6j0pi8aq::::res://models/fany_Image_5.png<>uid://bm3j7yd2yxqmg::::res://models/fany_Image_6.png<>uid://dgx4yhc0m2dco::::res://models/fany_Image_7.png<>uid://dem0w5ibttcvl::::res://models/fany_Image_8.png<>uid://dqjvrgnkhwqsc::::res://models/fany_Image_9.png<>uid://dftb677uwwyac::::res://models/fany_Image_11.png<>uid://bps7iu3vuq1ii::::res://models/fany_Image_13.png<>uid://c587i53323p6j::::res://models/fany_Image_14.png
@@ -100,7 +100,8 @@ bilan.tscn::PackedScene::-1::1792427410::0::1::::<><><>0<>0<><>::res://scripts/b
 bus.tscn::PackedScene::-1::1792427410::0::1::::<><><>0<>0<><>::res://scripts/bus.gd
 gare.tscn::PackedScene::-1::1792496687::0::1::::<><><>0<>0<><>::res://scripts/gare.gd
 hall.tscn::PackedScene::6557207439863880139::1792498375::0::1::::<><><>0<>0<><>::uid://c17v8dxr17jye::::res://scripts/hall.gd
-::res://scripts/::1792614499
+::res://scripts/::1792619992
+animation_toucher.gd::GDScript::557171902875423609::1792619834::0::1::::<>Node3D<><>0<>0<><>::
 autotest.gd::GDScript::8381581898120803958::1792428098::0::1::::<>Node<><>0<>0<><>::
 bilan.gd::GDScript::7592111177285210499::1792496688::0::1::::<>Control<><>0<>0<><>::
 build.gd::GDScript::6987842099350260980::1792428085::0::1::::Build<>RefCounted<><>0<>0<><>::
@@ -119,6 +120,7 @@ ordinary_visual.gd::GDScript::7510143248711441276::1792444830::0::1::::<>RefCoun
 passenger.gd::GDScript::4290177380092166549::1792496688::0::1::::Passenger<>StaticBody3D<><>0<>0<><>::
 people.gd::GDScript::3133333984354874882::1792500274::0::1::::People<>RefCounted<><>0<>0<><>::
 player.gd::GDScript::1811386043799532974::1792430754::0::1::::Player<>CharacterBody3D<><>0<>0<><>::
+Scene_Controller.gd::GDScript::7269822840002780710::1792620259::0::1::::<>Node3D<><>0<>0<><>::
 ticket_ui.gd::GDScript::6632871385774314162::1792427288::0::1::::TicketUI<>CanvasLayer<><>0<>0<><>::
 ::res://shaders/::1792444024
 bus_surface.gdshader::Shader::9061663422076083654::1792443910::0::1::::<><><>0<>0<><>::
