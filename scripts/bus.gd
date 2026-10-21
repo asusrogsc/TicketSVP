@@ -8,13 +8,13 @@ const STOP_TIME := 8.0        # arrêt par défaut, portes ouvertes (réglable p
 const WRAP_BACK := 80.0
 const WRAP_LEN := 320.0
 const DOOR_Z := 0.0           # porte du milieu (côté droit, +X)
-const BOARD_MIN := 15          # passagers qui montent à chaque arrêt (min)   — avant : 2
-const BOARD_MAX := 20          # passagers qui montent à chaque arrêt (max)   — avant : 4
+const BOARD_MIN := 2          # passagers qui montent à chaque arrêt (min)   — avant : 2
+const BOARD_MAX := 4          # passagers qui montent à chaque arrêt (max)   — avant : 4
 const ALIGHT_MIN := 1         # passagers qui descendent à chaque arrêt (min) — avant : 1
-const ALIGHT_MAX := 3         # passagers qui descendent à chaque arrêt (max) — avant : 2
-const SPECIALS_MIN := 10       # personnages spéciaux par trajet (minimum)
+const ALIGHT_MAX := 2         # passagers qui descendent à chaque arrêt (max) — avant : 2
+const SPECIALS_MIN := 15       # personnages spéciaux par trajet (minimum)
 const QUALITY_HIGH := true    # passe à false si le PC rame
-const SPECIALS_MAX := 10       # personnages spéciaux par trajet (maximum)
+const SPECIALS_MAX := 20       # personnages spéciaux par trajet (maximum)
 const CHATTY_IDS := ["oldman", "male1", "male2"]
 
 var line: Dictionary
