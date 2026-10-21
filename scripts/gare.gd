@@ -56,6 +56,8 @@ func _ready() -> void:
 	if PLUIE:
 		_build_rain()
 	_start_idle_behaviours()
+	_bevel_all([_tile_shader])
+	_hd_render_settings()
 	_update_info()
 	hud.show_toast("Terminus %s — Va faire ton rapport au chef de gare" % line.to, Color(1, 0.95, 0.7), 6.0)
 
@@ -153,7 +155,6 @@ func _build_station() -> void:
 	_tiles(Build.box(self, Vector3(2.0, 2.6, 2.6), Vector3(-3.4, 1.3, 12.5), Color.WHITE),
 		Vector2(0.3, 0.3), 0.0, 0.006, Color(0.92, 0.88, 0.78), Color(0.8, 0.76, 0.68), 0.04, 0.15, 0.85)
 	_metal(Build.box(self, Vector3(2.4, 0.1, 3.0), Vector3(-3.3, 2.65, 12.5), Color(0.2, 0.24, 0.32), false), 0.45, null, 0.6)
-	Build.box(self, Vector3(0.06, 1.15, 1.75), Vector3(-2.39, 1.5, 12.5), Color(0.9, 0.9, 0.88), false)   # cadre
 	_shop_window(Vector3(-2.37, 1.5, 12.5), Vector2(1.6, 1.0), 1, "bureau")
 	_rough(Build.box(self, Vector3(0.3, 0.05, 1.7), Vector3(-2.3, 0.97, 12.5), Color(0.5, 0.33, 0.18), false), 0.5)  # comptoir
 	var ks := Build.label3d(self, "CHEF DE GARE", Vector3(-2.36, 2.3, 12.5), 44, Color(0.12, 0.18, 0.45))
@@ -863,6 +864,8 @@ uniform float grout = 0.01;
 uniform float variation = 0.1;
 uniform float speckle = 0.2;
 uniform float rough = 0.85;
+uniform float bump = 1.0;          // force du relief (joints creusés + grain)
+uniform float bevel = 0.004;       // largeur de l'arrondi au bord des briques / dalles (m)
 varying vec3 wpos;
 varying vec3 wnrm;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -870,26 +873,53 @@ float noise(vec2 p) {
 	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
 	return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
 }
+// distance (m) au bord de la brique / dalle
+float edge_dist(vec2 uv) {
+	vec2 b = uv / tile_size;
+	b.x += mod(floor(b.y), 2.0) * stagger;
+	vec2 f = fract(b);
+	vec2 d = min(f, 1.0 - f) * tile_size;
+	return min(d.x, d.y);
+}
+float groove_h(vec2 uv) {
+	if (grout <= 0.0) return 1.0;
+	return smoothstep(grout * 0.5, grout * 0.5 + bevel, edge_dist(uv));
+}
+float grain_h(vec2 uv) {
+	return noise(uv * 25.0) * 0.5 + noise(uv * 6.0) * 0.5;
+}
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
 void fragment() {
 	vec3 n = abs(wnrm);
-	vec2 uv = n.y > 0.6 ? wpos.xz : (n.x > n.z ? wpos.zy : wpos.xy);
+	vec2 uv;
+	vec3 A;
+	vec3 B;
+	if (n.y > 0.6) { uv = wpos.xz; A = vec3(1, 0, 0); B = vec3(0, 0, 1); }
+	else if (n.x > n.z) { uv = wpos.zy; A = vec3(0, 0, 1); B = vec3(0, 1, 0); }
+	else { uv = wpos.xy; A = vec3(1, 0, 0); B = vec3(0, 1, 0); }
 	vec2 b = uv / tile_size;
 	b.x += mod(floor(b.y), 2.0) * stagger;
 	vec2 id = floor(b);
-	vec2 f = fract(b);
-	vec2 g = vec2(grout) / tile_size;
-	float inside = step(g.x, f.x) * step(g.y, f.y);
+	float h = groove_h(uv);
+	float inside = grout > 0.0 ? step(grout * 0.5, edge_dist(uv)) : 1.0;
 	float v = hash(id);
 	float sp = noise(uv * 40.0) * 0.6 + noise(uv * 7.0) * 0.4;
 	vec3 col = base_color.rgb * (1.0 - variation * 0.5 + variation * v) * (1.0 - speckle * 0.5 + speckle * sp);
 	ALBEDO = mix(grout_color.rgb, col, inside);
-	ROUGHNESS = mix(1.0, rough, inside) - sp * 0.05;
-	AO = mix(0.55, 1.0, inside);
-	AO_LIGHT_AFFECT = 0.4;
+	ROUGHNESS = clamp(mix(1.0, rough, inside) - sp * 0.05, 0.0, 1.0);
+	// relief : gradient de hauteur -> normale perturbée (en espace monde, puis vue)
+	float e = 0.0012;
+	vec2 g_groove = vec2(groove_h(uv + vec2(e, 0.0)) - h, groove_h(uv + vec2(0.0, e)) - h) / e;
+	float g0 = grain_h(uv);
+	vec2 g_grain = vec2(grain_h(uv + vec2(e, 0.0)) - g0, grain_h(uv + vec2(0.0, e)) - g0) / e;
+	vec2 grad = g_groove * 0.003 + g_grain * 0.0012 * (0.3 + speckle);
+	vec3 nw = normalize(wnrm - bump * (grad.x * A + grad.y * B));
+	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
+	AO = mix(0.45, 1.0, h);
+	AO_LIGHT_AFFECT = 0.5;
 }
 """
 
@@ -963,7 +993,7 @@ func _build_station_extras() -> void:
 	menu_l.rotation_degrees.y = 90
 	menu_l.pixel_size = 0.003
 	menu_l.outline_size = 0
-	var neon := Build.label3d(self, "OUVERT", Vector3(-4.38, 1.95, cafe_z + 0.55), 40, Color(1, 0.35, 0.45))
+	var neon := Build.label3d(self, "OUVERT", Vector3(-4.37, 1.72, cafe_z + 0.5), 40, Color(1, 0.35, 0.45))
 	neon.rotation_degrees.y = 90
 	neon.pixel_size = 0.0035
 	neon.outline_size = 10
@@ -1212,8 +1242,10 @@ func _puddles() -> void:
 	road_mat.roughness = 0.0
 	road_mat.metallic_specular = 1.0
 	var tile_mat := StandardMaterial3D.new()
-	tile_mat.albedo_color = Color(0.3, 0.3, 0.31)
-	tile_mat.roughness = 0.0
+	# flaque sur dalle : film d'eau transparent qui laisse voir le carrelage et reflète les lumières
+	tile_mat.albedo_color = Color(0.35, 0.34, 0.33, 0.45)
+	tile_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	tile_mat.roughness = 0.03
 	tile_mat.metallic_specular = 1.0
 	for i in 18:
 		var p := MeshInstance3D.new()
@@ -1492,7 +1524,7 @@ func _entrance(at: Vector3) -> void:
 	_lbl("ENTRÉE", Vector3(fx + 0.075, h + 0.2, at.z), 40, Color(1, 0.95, 0.8), 0.0032)
 	# deux vantaux vitrés
 	for side in [-1, 1]:
-		var cz := at.z + side * w / 4
+		var cz: float = at.z + side * w / 4
 		for bar in [[Vector3(0.06, h, 0.06), Vector3(0, h / 2, -w / 4 + 0.03)], [Vector3(0.06, h, 0.06), Vector3(0, h / 2, w / 4 - 0.03)],
 				[Vector3(0.06, 0.18, w / 2), Vector3(0, 0.09, 0)], [Vector3(0.06, 0.06, w / 2), Vector3(0, h - 0.03, 0)]]:
 			_metal(Build.box(self, bar[0], Vector3(fx + 0.07, 0, cz) + bar[1], alu, false), 0.35)
@@ -1506,3 +1538,125 @@ func _entrance(at: Vector3) -> void:
 	_glow(Build.box(self, Vector3(0.06, 0.05, 0.2), Vector3(fx + 0.1, h + 0.42, at.z), Color(0.15, 0.15, 0.17), false), Color(0.9, 0.2, 0.15), 0.3)
 	_tiles(Build.box(self, Vector3(1.0, 0.015, w - 0.1), Vector3(fx + 0.55, 0.008, at.z), Color.WHITE, false),
 		Vector2(0.02, 2.0), 0.0, 0.006, Color(0.22, 0.22, 0.24), Color(0.1, 0.1, 0.11), 0.05, 0.3, 1.0)
+
+
+# ------------------------------------------------------------------ palier 1 : réglages moteur HD + arêtes biseautées
+
+## Anticrénelage TAA, ombres douces haute résolution (PCSS), SSAO/SSIL en haute qualité.
+func _hd_render_settings() -> void:
+	var vp := get_viewport()
+	if QUALITY_HIGH:
+		vp.use_taa = true
+		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
+		vp.msaa_3d = Viewport.MSAA_2X
+	vp.positional_shadow_atlas_size = 8192 if QUALITY_HIGH else 4096
+	RenderingServer.directional_shadow_atlas_set_size(8192 if QUALITY_HIGH else 4096, true)
+	var sq := RenderingServer.SHADOW_QUALITY_SOFT_HIGH if QUALITY_HIGH else RenderingServer.SHADOW_QUALITY_SOFT_LOW
+	RenderingServer.directional_soft_shadow_filter_set_quality(sq)
+	RenderingServer.positional_soft_shadow_filter_set_quality(sq)
+	RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_HIGH if QUALITY_HIGH else RenderingServer.ENV_SSAO_QUALITY_MEDIUM, not QUALITY_HIGH, 0.5, 2, 50.0, 300.0)
+	RenderingServer.environment_set_ssil_quality(RenderingServer.ENV_SSIL_QUALITY_HIGH if QUALITY_HIGH else RenderingServer.ENV_SSIL_QUALITY_MEDIUM, not QUALITY_HIGH, 0.5, 4, 50.0, 300.0)
+	RenderingServer.screen_space_roughness_limiter_set_active(true, 0.25, 0.18)   # moins de scintillement sur les reflets
+	# ombres douces qui s'élargissent avec la distance (comme dans la réalité)
+	for l in find_children("*", "DirectionalLight3D", true, false):
+		(l as DirectionalLight3D).light_angular_distance = 0.6
+	for l in find_children("*", "OmniLight3D", true, false):
+		var o := l as OmniLight3D
+		o.light_size = 0.08
+		o.shadow_blur = 1.2
+	for l in find_children("*", "SpotLight3D", true, false):
+		(l as SpotLight3D).light_size = 0.05
+
+
+var _bevel_cache := {}
+
+
+## Remplace les boîtes du décor par des boîtes aux arêtes chanfreinées : la lumière accroche les angles.
+## Les très grandes surfaces (sols, murs) et les matériaux inconnus (ex. parquet) ne sont pas touchés.
+func _bevel_all(known_shaders: Array) -> void:
+	for n in find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if not (mi.mesh is BoxMesh):
+			continue
+		var mo := mi.material_override
+		if mo is ShaderMaterial and not known_shaders.has((mo as ShaderMaterial).shader):
+			continue
+		var sz: Vector3 = (mi.mesh as BoxMesh).size
+		var mn := minf(sz.x, minf(sz.y, sz.z))
+		var mx := maxf(sz.x, maxf(sz.y, sz.z))
+		if mn < 0.008 or mx > 6.0:
+			continue
+		var r := clampf(mn * 0.18, 0.002, 0.02)
+		var key := "%.4f_%.4f_%.4f_%.4f" % [sz.x, sz.y, sz.z, r]
+		if not _bevel_cache.has(key):
+			_bevel_cache[key] = _chamfer_box(sz, r)
+		mi.mesh = _bevel_cache[key]
+
+
+## Boîte chanfreinée : 6 faces, 12 biseaux d'arête, 8 coins.
+func _chamfer_box(size: Vector3, r: float) -> ArrayMesh:
+	var h := size * 0.5
+	var inner := h - Vector3(r, r, r)
+	# point du coin s (signes ±1) sur la face perpendiculaire à l'axe a
+	var P := func(a: int, s: Vector3) -> Vector3:
+		var p := Vector3(s.x * inner.x, s.y * inner.y, s.z * inner.z)
+		p[a] = s[a] * h[a]
+		return p
+	var tris: Array = []
+	var add_quad := func(a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
+		tris.append([a, b, c])
+		tris.append([a, c, d])
+	# faces principales
+	for a in 3:
+		var u := (a + 1) % 3
+		var v := (a + 2) % 3
+		for sa in [-1.0, 1.0]:
+			var pts: Array = []
+			for uv in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+				var s := Vector3.ZERO
+				s[a] = sa
+				s[u] = uv.x
+				s[v] = uv.y
+				pts.append(P.call(a, s))
+			add_quad.call(pts[0], pts[1], pts[2], pts[3])
+	# biseaux d'arête
+	for a in 3:
+		var b := (a + 1) % 3
+		var c := (a + 2) % 3
+		for sa in [-1.0, 1.0]:
+			for sb in [-1.0, 1.0]:
+				var s1 := Vector3.ZERO
+				s1[a] = sa
+				s1[b] = sb
+				s1[c] = -1.0
+				var s2 := s1
+				s2[c] = 1.0
+				add_quad.call(P.call(a, s1), P.call(b, s1), P.call(b, s2), P.call(a, s2))
+	# coins
+	for sx in [-1.0, 1.0]:
+		for sy in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				var s := Vector3(sx, sy, sz)
+				tris.append([P.call(0, s), P.call(1, s), P.call(2, s)])
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for t in tris:
+		var p0: Vector3 = t[0]
+		var p1: Vector3 = t[1]
+		var p2: Vector3 = t[2]
+		var cr := (p1 - p0).cross(p2 - p0)
+		if cr.length() < 1e-9:
+			continue
+		var centroid := (p0 + p1 + p2) / 3.0
+		# Godot : faces avant en sens horaire vu de l'extérieur
+		if cr.dot(centroid) > 0.0:
+			var tmp := p1
+			p1 = p2
+			p2 = tmp
+			cr = -cr
+		var nrm := (-cr).normalized()
+		for p in [p0, p1, p2]:
+			st.set_normal(nrm)
+			st.set_uv(Vector2(p.x + p.z, p.y))
+			st.add_vertex(p)
+	return st.commit()

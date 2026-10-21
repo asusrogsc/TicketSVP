@@ -24,6 +24,8 @@ func _ready() -> void:
 	_upgrade_materials()
 	_upgrade_lights()
 	_setup_sun()
+	_bevel_all(_shader_cache.values())
+	_hd_render_settings()
 
 	hud = Hud.new()
 	add_child(hud)
@@ -668,41 +670,63 @@ float noise(vec2 p) {
 	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
 	return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
 }
+float motif(vec2 uv) {
+	float s = fract(uv.x / 0.24);
+	vec2 m = vec2(s - 0.25, fract(uv.y / 0.16) - 0.5);
+	float d = abs(m.x) * 3.0 + abs(m.y) * 2.0;
+	return (s < 0.5) ? 1.0 - smoothstep(0.14, 0.2, d) : 0.0;
+}
+// papier gaufré : motif en relief + fibres
+float height(vec2 uv) {
+	return motif(uv) + noise(uv * 10.0) * 0.08;
+}
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
 void fragment() {
 	vec3 n = abs(wnrm);
-	vec2 uv = n.x > n.z ? wpos.zy : wpos.xy;
-	// rayures verticales larges / fines
+	bool xface = n.x > n.z;
+	vec2 uv = xface ? wpos.zy : wpos.xy;
+	vec3 A = xface ? vec3(0, 0, 1) : vec3(1, 0, 0);
+	vec3 B = vec3(0, 1, 0);
 	float s = fract(uv.x / 0.24);
 	vec3 col = s < 0.5 ? col_a.rgb : col_b.rgb;
 	col = mix(col, col_b.rgb * 0.92, step(0.48, s) * step(s, 0.52));
-	// petit motif losange dans les bandes claires
-	vec2 m = vec2(fract(uv.x / 0.24) - 0.25, fract(uv.y / 0.16) - 0.5);
-	float d = abs(m.x) * 3.0 + abs(m.y) * 2.0;
-	if (s < 0.5 && d < 0.18) col = mix(col, col_motif.rgb, 0.7);
-	// grain du papier
-	col *= 0.95 + 0.07 * noise(uv * 60.0) + 0.03 * noise(uv * 4.0);
+	col = mix(col, col_motif.rgb, motif(uv) * 0.7);
+	col *= 0.97 + 0.03 * noise(uv * 30.0) + 0.02 * noise(uv * 4.0);
 	ALBEDO = col;
-	ROUGHNESS = 0.9;
+	ROUGHNESS = 0.88 - motif(uv) * 0.25;      // motif légèrement satiné
+	float e = 0.001;
+	float h = height(uv);
+	vec2 g = vec2(height(uv + vec2(e, 0.0)) - h, height(uv + vec2(0.0, e)) - h) / e;
+	vec3 nw = normalize(wnrm - 0.0009 * (g.x * A + g.y * B));
+	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 }
 """
 
 const PLASTER_SHADER := """
 shader_type spatial;
 varying vec3 wpos;
+varying vec3 wnrm;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p) {
 	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
 	return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
 }
-void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+float height(vec2 p) { return noise(p * 6.0) * 0.6 + noise(p * 18.0) * 0.25; }
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
 void fragment() {
-	float n = noise(wpos.xz * 25.0) * 0.6 + noise(wpos.xz * 3.0) * 0.4;
-	ALBEDO = vec3(0.95, 0.94, 0.91) * (0.95 + 0.06 * n);
+	float h = height(wpos.xz);
+	ALBEDO = vec3(0.95, 0.94, 0.91) * (0.98 + 0.03 * h);
 	ROUGHNESS = 0.95;
+	float e = 0.002;
+	vec2 g = vec2(height(wpos.xz + vec2(e, 0.0)) - h, height(wpos.xz + vec2(0.0, e)) - h) / e;
+	vec3 nw = normalize(wnrm - 0.0006 * (g.x * vec3(1, 0, 0) + g.y * vec3(0, 0, 1)));
+	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 }
 """
 
@@ -715,7 +739,12 @@ float noise(vec2 p) {
 	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
 	return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
 }
-void vertex() { lpos = VERTEX; }
+varying vec3 wn;
+float pile(vec2 p) {
+	// trame tissée + touffes de laine
+	return sin(p.x * 500.0) * sin(p.y * 500.0) * 0.15 + noise(p * 220.0) * 0.6 + noise(p * 40.0) * 0.25;
+}
+void vertex() { lpos = VERTEX; wn = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz); }
 void fragment() {
 	vec2 p = lpos.xz;
 	vec2 h = size * 0.5;
@@ -750,6 +779,12 @@ void fragment() {
 	ALBEDO = col;
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.2;
+	float eps = 0.0008;
+	float h0 = pile(p);
+	vec2 g = vec2(pile(p + vec2(eps, 0.0)) - h0, pile(p + vec2(0.0, eps)) - h0) / eps;
+	vec3 nw = normalize(wn - 0.0006 * (g.x * vec3(1, 0, 0) + g.y * vec3(0, 0, 1)));
+	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
+	AO = 0.85 + 0.15 * h0;
 }
 """
 
@@ -819,3 +854,125 @@ func _build_coat(at: Vector3) -> void:
 		Build.box(root, Vector3(0.105, 0.035, 0.105), Vector3(-0.01, 1.16, side * 0.235), yellow, false)   # bande de manche
 	# bande réfléchissante autour du buste
 	_make_emissive(Build.box(root, Vector3(0.125, 0.04, 0.425), Vector3(0, 1.2, 0), yellow, false), yellow, 0.15)
+
+
+# ------------------------------------------------------------------ palier 1 : réglages moteur HD + arêtes biseautées
+
+## Anticrénelage TAA, ombres douces haute résolution (PCSS), SSAO/SSIL en haute qualité.
+func _hd_render_settings() -> void:
+	var vp := get_viewport()
+	if QUALITY_HIGH:
+		vp.use_taa = true
+		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
+		vp.msaa_3d = Viewport.MSAA_2X
+	vp.positional_shadow_atlas_size = 8192 if QUALITY_HIGH else 4096
+	RenderingServer.directional_shadow_atlas_set_size(8192 if QUALITY_HIGH else 4096, true)
+	var sq := RenderingServer.SHADOW_QUALITY_SOFT_HIGH if QUALITY_HIGH else RenderingServer.SHADOW_QUALITY_SOFT_LOW
+	RenderingServer.directional_soft_shadow_filter_set_quality(sq)
+	RenderingServer.positional_soft_shadow_filter_set_quality(sq)
+	RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_HIGH if QUALITY_HIGH else RenderingServer.ENV_SSAO_QUALITY_MEDIUM, not QUALITY_HIGH, 0.5, 2, 50.0, 300.0)
+	RenderingServer.environment_set_ssil_quality(RenderingServer.ENV_SSIL_QUALITY_HIGH if QUALITY_HIGH else RenderingServer.ENV_SSIL_QUALITY_MEDIUM, not QUALITY_HIGH, 0.5, 4, 50.0, 300.0)
+	RenderingServer.screen_space_roughness_limiter_set_active(true, 0.25, 0.18)   # moins de scintillement sur les reflets
+	# ombres douces qui s'élargissent avec la distance (comme dans la réalité)
+	for l in find_children("*", "DirectionalLight3D", true, false):
+		(l as DirectionalLight3D).light_angular_distance = 0.6
+	for l in find_children("*", "OmniLight3D", true, false):
+		var o := l as OmniLight3D
+		o.light_size = 0.08
+		o.shadow_blur = 1.2
+	for l in find_children("*", "SpotLight3D", true, false):
+		(l as SpotLight3D).light_size = 0.05
+
+
+var _bevel_cache := {}
+
+
+## Remplace les boîtes du décor par des boîtes aux arêtes chanfreinées : la lumière accroche les angles.
+## Les très grandes surfaces (sols, murs) et les matériaux inconnus (ex. parquet) ne sont pas touchés.
+func _bevel_all(known_shaders: Array) -> void:
+	for n in find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if not (mi.mesh is BoxMesh):
+			continue
+		var mo := mi.material_override
+		if mo is ShaderMaterial and not known_shaders.has((mo as ShaderMaterial).shader):
+			continue
+		var sz: Vector3 = (mi.mesh as BoxMesh).size
+		var mn := minf(sz.x, minf(sz.y, sz.z))
+		var mx := maxf(sz.x, maxf(sz.y, sz.z))
+		if mn < 0.008 or mx > 6.0:
+			continue
+		var r := clampf(mn * 0.18, 0.002, 0.02)
+		var key := "%.4f_%.4f_%.4f_%.4f" % [sz.x, sz.y, sz.z, r]
+		if not _bevel_cache.has(key):
+			_bevel_cache[key] = _chamfer_box(sz, r)
+		mi.mesh = _bevel_cache[key]
+
+
+## Boîte chanfreinée : 6 faces, 12 biseaux d'arête, 8 coins.
+func _chamfer_box(size: Vector3, r: float) -> ArrayMesh:
+	var h := size * 0.5
+	var inner := h - Vector3(r, r, r)
+	# point du coin s (signes ±1) sur la face perpendiculaire à l'axe a
+	var P := func(a: int, s: Vector3) -> Vector3:
+		var p := Vector3(s.x * inner.x, s.y * inner.y, s.z * inner.z)
+		p[a] = s[a] * h[a]
+		return p
+	var tris: Array = []
+	var add_quad := func(a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
+		tris.append([a, b, c])
+		tris.append([a, c, d])
+	# faces principales
+	for a in 3:
+		var u := (a + 1) % 3
+		var v := (a + 2) % 3
+		for sa in [-1.0, 1.0]:
+			var pts: Array = []
+			for uv in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+				var s := Vector3.ZERO
+				s[a] = sa
+				s[u] = uv.x
+				s[v] = uv.y
+				pts.append(P.call(a, s))
+			add_quad.call(pts[0], pts[1], pts[2], pts[3])
+	# biseaux d'arête
+	for a in 3:
+		var b := (a + 1) % 3
+		var c := (a + 2) % 3
+		for sa in [-1.0, 1.0]:
+			for sb in [-1.0, 1.0]:
+				var s1 := Vector3.ZERO
+				s1[a] = sa
+				s1[b] = sb
+				s1[c] = -1.0
+				var s2 := s1
+				s2[c] = 1.0
+				add_quad.call(P.call(a, s1), P.call(b, s1), P.call(b, s2), P.call(a, s2))
+	# coins
+	for sx in [-1.0, 1.0]:
+		for sy in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				var s := Vector3(sx, sy, sz)
+				tris.append([P.call(0, s), P.call(1, s), P.call(2, s)])
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for t in tris:
+		var p0: Vector3 = t[0]
+		var p1: Vector3 = t[1]
+		var p2: Vector3 = t[2]
+		var cr := (p1 - p0).cross(p2 - p0)
+		if cr.length() < 1e-9:
+			continue
+		var centroid := (p0 + p1 + p2) / 3.0
+		# Godot : faces avant en sens horaire vu de l'extérieur
+		if cr.dot(centroid) > 0.0:
+			var tmp := p1
+			p1 = p2
+			p2 = tmp
+			cr = -cr
+		var nrm := (-cr).normalized()
+		for p in [p0, p1, p2]:
+			st.set_normal(nrm)
+			st.set_uv(Vector2(p.x + p.z, p.y))
+			st.add_vertex(p)
+	return st.commit()
