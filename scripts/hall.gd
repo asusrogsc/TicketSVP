@@ -64,25 +64,28 @@ func _setup_rendering() -> void:
 	env.volumetric_fog_density = 0.018
 	env.volumetric_fog_albedo = Color(1, 0.97, 0.92)
 	env.volumetric_fog_anisotropy = 0.6
-	env.volumetric_fog_length = 20.0
+	env.volumetric_fog_length = 25.0 # Augmenté la distance du brouillard
 	env.volumetric_fog_ambient_inject = 0.0
 	# occlusion ambiante : coins et dessous de meubles plus sombres
 	env.ssao_enabled = true
-	env.ssao_radius = 0.8
-	env.ssao_intensity = 1.6
+	env.ssao_radius = 1.0 # Augmenté le rayon SSAO
+	env.ssao_intensity = 1.8 # Augmenté l'intensité SSAO
 	# éclairage indirect : la lumière rebondit sur le parquet et les murs
 	env.ssil_enabled = QUALITY_HIGH
-	env.ssil_intensity = 0.8
+	env.ssil_intensity = 1.0 # Augmenté l'intensité SSIL
 	# reflets à l'écran (parquet ciré, miroir)
 	env.ssr_enabled = QUALITY_HIGH
-	env.ssr_max_steps = 64
+	env.ssr_max_steps = 128 # Augmenté les étapes SSR
 	env.ssr_fade_in = 0.1
 	# léger halo autour des lampes
 	env.glow_enabled = true
-	env.glow_intensity = 0.4
-	env.glow_bloom = 0.05
-	env.glow_hdr_threshold = 1.2
+	env.glow_intensity = 0.5 # Augmenté l'intensité du halo
+	env.glow_bloom = 0.07 # Augmenté le bloom
+	env.glow_hdr_threshold = 1.1 # Ajustement du seuil HDR
 	# couleurs un peu plus riches
+	env.adjustment_enabled = true
+	env.adjustment_contrast = 1.1 # Augmenté le contraste
+	env.adjustment_saturation = 1.15 # Augmenté la saturation
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.05
 	env.adjustment_saturation = 1.08
@@ -281,6 +284,20 @@ func _build_details() -> void:
 		leaf.position = Vector3(-2.15 + sin(i * 1.3) * 0.12, 0.6 + i * 0.07, 2.9 + cos(i * 1.3) * 0.12)
 		leaf.rotation_degrees = Vector3(20 * sin(i), i * 70, 15)
 		add_child(leaf)
+
+	# deuxième plante plus grande près de la fenêtre
+	var pot2 := Build.cylinder(self, 0.25, 0.4, Vector3(2.44, 1.45, 1.55), Color(0.7, 0.55, 0.3))
+	_make_fabric(pot2)
+	for i in 10:
+		var leaf2 := MeshInstance3D.new()
+		var sm2 := SphereMesh.new()
+		sm2.radius = 0.35
+		sm2.height = 0.7
+		leaf2.mesh = sm2
+		leaf2.material_override = Build.mat(Color(0.3, 0.55, 0.35), 0.9)
+		leaf2.position = Vector3(2.44 + sin(i * 1.5) * 0.1, 1.45 + i * 0.05, 1.55 + cos(i * 1.5) * 0.1)
+		leaf2.rotation_degrees = Vector3(30 * sin(i), i * 80, 15)
+		add_child(leaf2)
 
 	# paillasson devant la porte
 	var mat := Build.box(self, Vector3(0.9, 0.025, 0.55), Vector3(0, 0.013, -3.05), Color(0.45, 0.35, 0.22), false)
