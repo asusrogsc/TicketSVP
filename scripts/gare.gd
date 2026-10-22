@@ -56,7 +56,7 @@ func _ready() -> void:
 	if PLUIE:
 		_build_rain()
 	_start_idle_behaviours()
-	_bevel_all([_tile_shader])
+	_bevel_all([_tile_shader, _wood_shader])
 	_hd_render_settings()
 	_update_info()
 	hud.show_toast("Terminus %s — Va faire ton rapport au chef de gare" % line.to, Color(1, 0.95, 0.7), 6.0)
@@ -73,14 +73,14 @@ func _build_station() -> void:
 	var steel := Color(0.24, 0.27, 0.32)
 
 	# sol : pelouse, voie des bus, trottoir d'en face, quai (surface du quai à y = 0)
-	_tiles(Build.box(self, Vector3(160, 0.1, 160), Vector3(0, -0.45, 0), Color.WHITE, false),
-		Vector2(1.5, 1.5), 0.0, 0.0, Color(0.3, 0.5, 0.26), Color.BLACK, 0.06, 0.35, 1.0)
-	_tiles(Build.box(self, Vector3(8, 0.1, 80), Vector3(8, -0.35, 0), Color.WHITE), 
-		Vector2(4, 4), 0.0, 0.0, Color(0.21, 0.21, 0.23), Color.BLACK, 0.0, 0.5, 0.92)
-	_tiles(Build.box(self, Vector3(3, 0.25, 80), Vector3(13.5, -0.2, 0), Color.WHITE),
-		Vector2(0.6, 0.6), 0.0, 0.012, Color(0.62, 0.61, 0.58), Color(0.42, 0.41, 0.4), 0.1, 0.25, 0.9)
-	_tiles(Build.box(self, Vector3(8.5, 0.3, 40), Vector3(-0.25, -0.15, 0), Color.WHITE),
-		Vector2(0.5, 0.5), 0.0, 0.01, Color(0.7, 0.69, 0.66), Color(0.45, 0.44, 0.42), 0.12, 0.2, 0.85)
+	_ground(_tiles(Build.box(self, Vector3(160, 0.1, 160), Vector3(0, -0.45, 0), Color.WHITE, false),
+		Vector2(1.5, 1.5), 0.0, 0.0, Color(0.3, 0.5, 0.26), Color.BLACK, 0.06, 0.35, 1.0), "grass")
+	_ground(_tiles(Build.box(self, Vector3(8, 0.1, 80), Vector3(8, -0.35, 0), Color.WHITE), 
+		Vector2(4, 4), 0.0, 0.0, Color(0.21, 0.21, 0.23), Color.BLACK, 0.0, 0.5, 0.92), "road")
+	_ground(_tiles(Build.box(self, Vector3(3, 0.25, 80), Vector3(13.5, -0.2, 0), Color.WHITE),
+		Vector2(0.6, 0.6), 0.0, 0.012, Color(0.62, 0.61, 0.58), Color(0.42, 0.41, 0.4), 0.1, 0.25, 0.9), "paving")
+	_ground(_tiles(Build.box(self, Vector3(8.5, 0.3, 40), Vector3(-0.25, -0.15, 0), Color.WHITE),
+		Vector2(0.5, 0.5), 0.0, 0.01, Color(0.7, 0.69, 0.66), Color(0.45, 0.44, 0.42), 0.12, 0.2, 0.85), "quay")
 	# bord du quai : bande podotactile jaune (picots) + bordure béton
 	_tiles(Build.box(self, Vector3(0.45, 0.012, 40), Vector3(3.55, 0.006, 0), Color.WHITE, false),
 		Vector2(0.06, 0.06), 0.0, 0.015, Color(0.95, 0.78, 0.08), Color(0.7, 0.55, 0.05), 0.05, 0.1, 0.7)
@@ -97,8 +97,7 @@ func _build_station() -> void:
 
 	# marquise : toit, sous-face claire, chéneau, poteaux sur platines
 	_metal(Build.box(self, Vector3(8.4, 0.12, 32), Vector3(-0.6, 3.78, 0), Color(0.2, 0.24, 0.32), false), 0.5, null, 0.6)
-	_tiles(Build.box(self, Vector3(8.2, 0.03, 31.8), Vector3(-0.6, 3.705, 0), Color.WHITE, false),
-		Vector2(0.12, 2.4), 0.5, 0.008, Color(0.72, 0.52, 0.32), Color(0.35, 0.24, 0.14), 0.15, 0.35, 0.6)   # lames de bois
+	_wood(Build.box(self, Vector3(8.2, 0.03, 31.8), Vector3(-0.6, 3.705, 0), Color.WHITE, false), Color(0.72, 0.52, 0.32), 0.12)   # lames de bois
 	_metal(Build.box(self, Vector3(0.18, 0.35, 32.2), Vector3(3.55, 3.62, 0), steel, false), 0.4)
 	for z in range(-15, 16, 6):
 		for x in [-3.6, 2.9]:
@@ -213,7 +212,7 @@ func _window(at: Vector3, size: Vector2, lit: bool) -> void:
 	if lit:
 		_glow(g, Color(1, 0.86, 0.62), 0.7)
 	else:
-		_metal(g, 0.04, Color(0.32, 0.4, 0.5), 0.5)
+		_glass(g, Color(0.22, 0.28, 0.34), 0.10)
 	# rideaux de part et d'autre (couleur au hasard)
 	var curtain: Color = [Color(0.88, 0.82, 0.68), Color(0.6, 0.2, 0.2), Color(0.25, 0.35, 0.55), Color(0.4, 0.5, 0.35)][rng.randi() % 4]
 	for side in [-1, 1]:
@@ -256,7 +255,7 @@ func _bench(at: Vector3) -> void:
 func _windscreen(at: Vector3) -> void:
 	var steel := Color(0.24, 0.27, 0.32)
 	var g := Build.box(self, Vector3(1.6, 2.1, 0.03), at + Vector3(0, 1.15, 0), Color(0.75, 0.88, 0.95, 0.22))
-	_metal(g, 0.05, Color(0.75, 0.88, 0.95, 0.22), 0.2)
+	_glass(g, Color(0.88, 0.95, 0.98, 0.16), 0.08)
 	for x in [-0.8, 0.8]:
 		_metal(Build.box(self, Vector3(0.05, 2.2, 0.06), at + Vector3(x, 1.1, 0), steel, false), 0.35)
 	_metal(Build.box(self, Vector3(1.65, 0.05, 0.06), at + Vector3(0, 2.22, 0), steel, false), 0.35)
@@ -391,7 +390,7 @@ func _vending_machine(at: Vector3) -> void:
 			tag.modulate = Color(0.1, 0.1, 0.12)
 	# vitre + cadre noir autour
 	var glass := Build.box(self, Vector3(0.012, wh, ww), Vector3(fx + 0.012, wy, wz), Color(0.8, 0.9, 1.0, 0.1), false)
-	_metal(glass, 0.02, Color(0.8, 0.9, 1.0, 0.1), 0.5)
+	_glass(glass, Color(0.93, 0.97, 1.0, 0.12), 0.07)
 	for side in [-1, 1]:
 		Build.box(self, Vector3(0.035, wh + 0.07, 0.035), Vector3(fx + 0.012, wy, wz + side * (ww / 2 + 0.017)), dark, false)
 		Build.box(self, Vector3(0.035, 0.035, ww + 0.07), Vector3(fx + 0.012, wy + side * (wh / 2 + 0.017), wz), dark, false)
@@ -495,7 +494,7 @@ func _build_backdrop() -> void:
 				if rng.randf() < 0.2:
 					_glow(g, Color(1, 0.86, 0.6), 0.5)
 				else:
-					_metal(g, 0.06, Color(0.42, 0.55, 0.7), 0.4)
+					_glass(g, Color(0.25, 0.32, 0.39), 0.13)
 			fy += 3.0
 		z += w
 	# lampadaires et arbres le long du trottoir d'en face
@@ -552,14 +551,14 @@ func _build_parked_bus() -> void:
 	Build.box(root, Vector3(W - 0.06, 0.85, L - 0.06), Vector3(0, 2.25, 0), Color(0.05, 0.06, 0.07), false)   # intérieur sombre
 	# vitres latérales teintées avec montants
 	for side in [-1, 1]:
-		_metal(Build.box(root, Vector3(0.04, 0.95, L - 0.6), Vector3(side * (W / 2), 2.15, 0), glass, false), 0.05, glass, 0.6)
+		_glass(Build.box(root, Vector3(0.04, 0.95, L - 0.6), Vector3(side * (W / 2), 2.15, 0), glass, false), glass, 0.08)
 		var mz := -L / 2 + 0.6
 		while mz < L / 2 - 0.5:
 			Build.box(root, Vector3(0.06, 0.95, 0.08), Vector3(side * (W / 2 + 0.01), 2.15, mz), Color(0.08, 0.08, 0.09), false)
 			mz += 1.6
 	# pare-brise (avant, +Z), lunette arrière, pare-chocs, phares, feux
-	_metal(Build.box(root, Vector3(W - 0.15, 1.5, 0.04), Vector3(0, 2.0, L / 2 + 0.01), glass, false), 0.04, glass, 0.6)
-	_metal(Build.box(root, Vector3(W - 0.5, 0.7, 0.04), Vector3(0, 2.3, -L / 2 - 0.01), glass, false), 0.05, glass, 0.6)
+	_glass(Build.box(root, Vector3(W - 0.15, 1.5, 0.04), Vector3(0, 2.0, L / 2 + 0.01), glass, false), glass, 0.08)
+	_glass(Build.box(root, Vector3(W - 0.5, 0.7, 0.04), Vector3(0, 2.3, -L / 2 - 0.01), glass, false), glass, 0.08)
 	for zz in [L / 2 + 0.06, -L / 2 - 0.06]:
 		_metal(Build.box(root, Vector3(W + 0.04, 0.3, 0.12), Vector3(0, 0.6, zz), Color(0.12, 0.12, 0.13), false), 0.5)
 	for x in [-0.95, 0.95]:
@@ -593,7 +592,7 @@ func _build_parked_bus() -> void:
 	Build.box(bus_door, Vector3(0.06, 2.3, 1.3), Vector3.ZERO, Color(0.1, 0.1, 0.11))
 	for k in [-1, 1]:
 		var panel := Build.box(bus_door, Vector3(0.03, 1.9, 0.55), Vector3(-0.03, 0.1, k * 0.3), glass, false)
-		_metal(panel, 0.05, glass, 0.6)
+		_glass(panel, glass, 0.08)
 		panel.set_meta("dir", k)
 		_door_panels.append(panel)
 	_update_door()
@@ -940,10 +939,14 @@ uniform float grout = 0.01;
 uniform float variation = 0.1;
 uniform float speckle = 0.2;
 uniform float rough = 0.85;
+uniform float wet_level = 0.0;
+uniform int ground_kind = 0; // 1 asphalt, 2 pavement, 3 grass, 4 sheltered platform
+uniform float puddle_film = 0.0;
 uniform float bump = 1.0;          // force du relief (joints creusés + grain)
 uniform float bevel = 0.004;       // largeur de l'arrondi au bord des briques / dalles (m)
 varying vec3 wpos;
 varying vec3 wnrm;
+varying float film_edge;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p) {
 	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -966,7 +969,8 @@ float grain_h(vec2 uv) {
 }
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	wnrm = normalize(MODEL_NORMAL_MATRIX * NORMAL);
+	film_edge = COLOR.a;
 }
 void fragment() {
 	vec3 n = abs(wnrm);
@@ -986,13 +990,37 @@ void fragment() {
 	vec3 col = base_color.rgb * (1.0 - variation * 0.5 + variation * v) * (1.0 - speckle * 0.5 + speckle * sp);
 	ALBEDO = mix(grout_color.rgb, col, inside);
 	ROUGHNESS = clamp(mix(1.0, rough, inside) - sp * 0.05, 0.0, 1.0);
+	float film = 0.0;
+	if (ground_kind != 0 && wet_level > 0.0) {
+		float exposure = 1.0;
+		if (ground_kind == 4) {
+			float canopy = (1.0 - smoothstep(3.25, 3.8, wpos.x)) * (1.0 - smoothstep(15.5, 16.4, abs(wpos.z)));
+			exposure = 1.0 - canopy;
+		}
+		float wet_patch = noise(wpos.xz * 0.7 + vec2(12.7, 8.1));
+		float wet = wet_level * exposure * (0.45 + 0.55 * smoothstep(0.2, 0.8, wet_patch));
+		if (ground_kind == 3) {
+			ALBEDO *= mix(1.0, 0.85, wet);
+			ROUGHNESS = mix(ROUGHNESS, 0.95, wet);
+		} else if (ground_kind != 0) {
+			ALBEDO *= mix(1.0, 0.73, wet);
+			ROUGHNESS = mix(ROUGHNESS, ground_kind == 1 ? 0.23 : 0.36, wet);
+		}
+		film = puddle_film * smoothstep(0.0, 0.28, film_edge);
+		ALBEDO *= mix(1.0, 0.90, film);
+		ROUGHNESS = mix(ROUGHNESS, 0.045 + wet_patch * 0.025, film);
+		SPECULAR = mix(0.5, 0.25, film);
+	}
 	// relief : gradient de hauteur -> normale perturbée (en espace monde, puis vue)
 	float e = 0.0012;
 	vec2 g_groove = vec2(groove_h(uv + vec2(e, 0.0)) - h, groove_h(uv + vec2(0.0, e)) - h) / e;
 	float g0 = grain_h(uv);
 	vec2 g_grain = vec2(grain_h(uv + vec2(e, 0.0)) - g0, grain_h(uv + vec2(0.0, e)) - g0) / e;
 	vec2 grad = g_groove * 0.003 + g_grain * 0.0012 * (0.3 + speckle);
-	vec3 nw = normalize(wnrm - bump * (grad.x * A + grad.y * B));
+	vec2 ripple = vec2(0.0);
+	if (film > 0.0) ripple = vec2(cos(wpos.x * 34.0 + wpos.z * 19.0 + TIME * 2.8), sin(wpos.x * 17.0 - wpos.z * 31.0 + TIME * 2.1)) * 0.0015 * film;
+	vec2 relief = bump * grad * mix(1.0, 0.08, film) + ripple;
+	vec3 nw = normalize(wnrm - (relief.x * A + relief.y * B));
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 	AO = mix(0.45, 1.0, h);
 	AO_LIGHT_AFFECT = 0.5;
@@ -1104,7 +1132,7 @@ func _build_station_extras() -> void:
 					if rng.randf() < 0.2:
 						_glow(g, Color(1, 0.86, 0.6), 0.5)
 					else:
-						_metal(g, 0.06, Color(0.42, 0.55, 0.7), 0.4)
+						_glass(g, Color(0.25, 0.32, 0.39), 0.13)
 					wx += 2.0
 				fy += 3.0
 			x += w
@@ -1211,7 +1239,7 @@ func _shop_window(at: Vector3, size: Vector2, _dir: int, kind: String) -> void:
 		_glow(Build.box(self, Vector3(0.012, 0.05, size.x * 0.9), Vector3(back_x + 0.012, at.y + size.y / 2 - 0.06, at.z), Color(1, 0.95, 0.85), false), Color(1, 0.95, 0.85), 2.0)
 	# vitre avec reflet
 	var glass := Build.box(self, Vector3(0.01, size.y, size.x), Vector3(at.x + 0.03, at.y, at.z), Color(0.8, 0.9, 1.0, 0.12), false)
-	_metal(glass, 0.03, Color(0.8, 0.9, 1.0, 0.12), 0.5)
+	_glass(glass, Color(0.92, 0.97, 1.0, 0.14), 0.08)
 	# encadrement
 	for side in [-1, 1]:
 		Build.box(self, Vector3(0.05, size.y + 0.1, 0.05), Vector3(at.x + 0.03, at.y, at.z + side * (size.x / 2 + 0.025)), Color(0.12, 0.12, 0.13), false)
@@ -1300,53 +1328,64 @@ func _apply_ambiance() -> void:
 			o.shadow_enabled = false
 			add_child(o)
 	if PLUIE:
-		# chaussée, trottoir et pelouse mouillés : plus sombres et brillants
-		for m in find_children("*", "MeshInstance3D", true, false):
-			var mi := m as MeshInstance3D
-			if mi.material_override is ShaderMaterial and mi.global_position.y <= -0.2 and absf(mi.global_position.x) < 30:
-				var sm2: ShaderMaterial = mi.material_override
-				if sm2.shader == _tile_shader:
-					var col: Color = sm2.get_shader_parameter("base_color")
-					sm2.set_shader_parameter("base_color", col.darkened(0.3))
-					sm2.set_shader_parameter("rough", 0.18)
+		for kind in _ground_materials:
+			var material: ShaderMaterial = _ground_materials[kind]
+			material.set_shader_parameter("wet_level", 1.0)
 		_puddles()
 
 
 func _puddles() -> void:
-	var road_mat := StandardMaterial3D.new()
-	road_mat.albedo_color = Color(0.09, 0.09, 0.1)
-	road_mat.roughness = 0.0
-	road_mat.metallic_specular = 1.0
-	var tile_mat := StandardMaterial3D.new()
-	# flaque sur dalle : film d'eau transparent qui laisse voir le carrelage et reflète les lumières
-	tile_mat.albedo_color = Color(0.35, 0.34, 0.33, 0.45)
-	tile_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	tile_mat.roughness = 0.03
-	tile_mat.metallic_specular = 1.0
+	# Same opaque ground shader: joints/grain remain aligned through the film,
+	# edges merge through roughness rather than alpha sorting / dark discs.
+	var road: ShaderMaterial = _ground_materials["road"].duplicate()
+	var paving: ShaderMaterial = _ground_materials["quay"].duplicate()
+	road.set_shader_parameter("puddle_film", 1.0)
+	paving.set_shader_parameter("puddle_film", 1.0)
 	for i in 18:
+		var radius := rng.randf_range(0.25, 0.7) if i < 14 else rng.randf_range(0.15, 0.35)
 		var p := MeshInstance3D.new()
-		var cm := CylinderMesh.new()
-		cm.top_radius = rng.randf_range(0.25, 0.7) if i < 14 else rng.randf_range(0.15, 0.35)
-		cm.bottom_radius = cm.top_radius
-		cm.height = 0.004
-		cm.radial_segments = 24
-		p.mesh = cm
+		p.mesh = _puddle_mesh(radius, float(i) * 2.39996323 + radius * 5.0)
 		p.scale = Vector3(rng.randf_range(0.7, 1.3), 1, rng.randf_range(0.8, 1.8))
-		if i < 14:   # sur la voie des bus, surtout près du caniveau
-			p.material_override = road_mat
+		p.material_override = road if i < 14 else paving
+		if i < 14:
 			p.position = Vector3(rng.randf_range(4.4, 6.5) if i % 2 == 0 else rng.randf_range(6.5, 11.5), -0.297, rng.randf_range(-30, 30))
-		else:        # petites flaques aux bouts du quai, hors de l'abri
-			p.material_override = tile_mat
+		else:
 			p.position = Vector3(rng.randf_range(0.5, 3.0), 0.003, rng.randf_range(17.0, 19.5) * (1 if i % 2 == 0 else -1))
 		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		p.set_meta("gare_puddle", true)
 		add_child(p)
-	# sonde de réflexion : les flaques et le sol mouillé reflètent les lampes, les vitrines et le bus
 	var probe := ReflectionProbe.new()
 	probe.size = Vector3(30, 10, 60)
 	probe.position = Vector3(2, 3, 0)
 	probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	probe.box_projection = true
 	probe.intensity = 0.9
 	add_child(probe)
+
+
+func _puddle_mesh(radius: float, phase: float) -> ArrayMesh:
+	var vertices := PackedVector3Array([Vector3.ZERO])
+	var normals := PackedVector3Array([Vector3.UP])
+	var colors := PackedColorArray([Color(1, 1, 1, 1)])
+	var indices := PackedInt32Array()
+	const SEGMENTS := 48
+	for i in SEGMENTS:
+		var angle := TAU * float(i) / SEGMENTS
+		var irregular := 1.0 + 0.15 * sin(angle * 3.0 + phase) + 0.08 * sin(angle * 5.0 - phase * 1.7)
+		vertices.append(Vector3(cos(angle), 0, sin(angle)) * radius * irregular)
+		normals.append(Vector3.UP)
+		colors.append(Color(1, 1, 1, 0))
+	for i in SEGMENTS:
+		indices.append_array(PackedInt32Array([0, i + 1, (i + 1) % SEGMENTS + 1]))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_COLOR] = colors
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
 
 
 ## Pluie : trois zones d'émission autour de l'abri (voie + rue d'en face, et les deux bouts du quai).
@@ -1532,8 +1571,19 @@ func _lbl(t: String, pos: Vector3, font: int, col: Color, px_size: float) -> Lab
 
 
 ## Bois veiné (fil dans la longueur des lattes, axe Z).
-func _wood(n: Node, col: Color) -> void:
-	_tiles(n, Vector2(0.012, 1.1), 0.5, 0.0, col, col, 0.35, 0.45, 0.55)
+func _wood(n: Node, col: Color, plank_width := 0.0) -> void:
+	if _wood_shader == null:
+		_wood_shader = Shader.new()
+		_wood_shader.code = WOOD_SHADER
+	var mesh := _mesh_of(n)
+	if mesh == null: return
+	var material := ShaderMaterial.new()
+	material.shader = _wood_shader
+	material.set_shader_parameter("base_color", col)
+	material.set_shader_parameter("plank_width", plank_width)
+	var p := (n as Node3D).global_position
+	material.set_shader_parameter("board_seed", fposmod(p.x * 17.73 + p.y * 29.17 + p.z * 11.31, 93.0))
+	mesh.material_override = material
 
 
 ## Poubelle de ville : corps perforé, cerclages, couvercle bombé avec ouverture, logo.
@@ -1605,7 +1655,7 @@ func _entrance(at: Vector3) -> void:
 				[Vector3(0.06, 0.18, w / 2), Vector3(0, 0.09, 0)], [Vector3(0.06, 0.06, w / 2), Vector3(0, h - 0.03, 0)]]:
 			_metal(Build.box(self, bar[0], Vector3(fx + 0.07, 0, cz) + bar[1], alu, false), 0.35)
 		var g := Build.box(self, Vector3(0.012, h - 0.25, w / 2 - 0.12), Vector3(fx + 0.07, h / 2 + 0.06, cz), Color(0.8, 0.9, 1.0, 0.15), false)
-		_metal(g, 0.02, Color(0.8, 0.9, 1.0, 0.15), 0.5)
+		_glass(g, Color(0.90, 0.95, 1.0, 0.14), 0.07)
 		# barre de poussée chromée
 		_metal(Build.box(self, Vector3(0.035, 0.035, w / 2 - 0.3), Vector3(fx + 0.13, 1.05, cz), Color(0.82, 0.83, 0.85), false), 0.15)
 		for k in [-1, 1]:
@@ -1736,3 +1786,85 @@ func _chamfer_box(size: Vector3, r: float) -> ArrayMesh:
 			st.set_uv(Vector2(p.x + p.z, p.y))
 			st.add_vertex(p)
 	return st.commit()
+
+
+# ------------------------------------------------------------------ matériaux gare : bois et verre
+var _wood_shader: Shader
+var _ground_materials := {}
+
+func _ground(n: Node, kind: String) -> Node:
+	var mesh := _mesh_of(n)
+	if mesh and mesh.material_override is ShaderMaterial:
+		mesh.set_meta("gare_ground", kind)
+		var material := mesh.material_override as ShaderMaterial
+		var kinds := {"road": 1, "paving": 2, "grass": 3, "quay": 4}
+		material.set_shader_parameter("ground_kind", kinds[kind])
+		_ground_materials[kind] = material
+	return n
+
+
+func _glass(n: Node, color: Color, roughness := 0.08) -> Node:
+	var material := _own_mat(n)
+	if material:
+		material.albedo_color = color
+		material.metallic = 0.0
+		material.metallic_specular = 0.5
+		material.roughness = roughness
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if color.a < 1.0 else BaseMaterial3D.TRANSPARENCY_DISABLED
+	var mesh := _mesh_of(n)
+	if mesh: mesh.set_meta("gare_glass", true)
+	return n
+
+
+const WOOD_SHADER := """
+shader_type spatial;
+uniform vec4 base_color : source_color = vec4(0.56, 0.36, 0.19, 1.0);
+uniform float board_seed = 0.0;
+uniform float plank_width = 0.0;
+varying vec3 lp;
+varying vec3 local_normal;
+varying vec3 wp;
+varying vec3 normal_world;
+float wood_hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float wood_noise(vec2 p) {
+	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(wood_hash(i), wood_hash(i + vec2(1,0)), f.x), mix(wood_hash(i + vec2(0,1)), wood_hash(i + vec2(1,1)), f.x), f.y);
+}
+void vertex() {
+	lp = VERTEX;
+	local_normal = NORMAL;
+	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	normal_world = normalize(MODEL_NORMAL_MATRIX * NORMAL);
+}
+void fragment() {
+	float across = abs(local_normal.y) > abs(local_normal.x) ? lp.x : lp.y;
+	float seed = board_seed;
+	float joint = 0.0;
+	if (plank_width > 0.0) {
+		float row = floor(lp.x / plank_width);
+		vec2 board_uv = vec2(lp.x / plank_width, (lp.z + mod(row, 2.0) * 1.2) / 2.4);
+		seed += wood_hash(floor(board_uv)) * 19.0;
+		vec2 edge = min(fract(board_uv), 1.0 - fract(board_uv)) * vec2(plank_width, 2.4);
+		float d = min(edge.x, edge.y);
+		joint = 1.0 - smoothstep(0.0003, 0.0008 + fwidth(d), d);
+	}
+	float warp = wood_noise(vec2(lp.z * 1.6 + seed, across * 5.0));
+	float phase = across * 400.0 + warp * 3.5 + seed * 5.0;
+	float filtered = 1.0 - smoothstep(0.6, 2.2, fwidth(phase));
+	float grain = mix(0.28, pow(0.5 + 0.5 * sin(phase), 4.0), filtered);
+	float broad = wood_noise(vec2(across * 65.0 + seed, lp.z * 1.8));
+	float pores = wood_noise(vec2(across * 250.0, lp.z * 11.0 + seed));
+	float board_tone = 0.95 + wood_hash(vec2(seed, 4.7)) * 0.10;
+	ALBEDO = base_color.rgb * board_tone * (0.98 + 0.12 * broad - 0.12 * grain);
+	ALBEDO = mix(ALBEDO, base_color.rgb * 0.64, joint);
+	ROUGHNESS = clamp(0.68 + 0.07 * broad + 0.035 * pores + joint * 0.12, 0.0, 1.0);
+	SPECULAR = 0.32;
+	float height = (broad * 0.5 + grain * 0.2 + pores * 0.3) * 0.00013 - joint * 0.0005;
+	vec3 dx = dFdx(wp); vec3 dy = dFdy(wp);
+	vec3 r1 = cross(dy, normal_world); vec3 r2 = cross(normal_world, dx);
+	float det = dot(dx, r1);
+	vec3 slope = sign(det) * (dFdx(height) * r1 + dFdy(height) * r2);
+	vec3 bumped = abs(det) * normal_world - slope;
+	if (dot(bumped, bumped) > 1e-16) NORMAL = normalize((VIEW_MATRIX * vec4(normalize(bumped), 0.0)).xyz);
+}
+"""

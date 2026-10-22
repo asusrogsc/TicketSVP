@@ -75,6 +75,7 @@ const MARIE_FOREARM_BEND := 52.0
 
 ## Pose debout ou assise (hanche posée sur le siège).
 func set_seated(seated: bool) -> void:
+	walk_reset()
 	if skel:
 		_pose_skeleton(seated)
 	else:
@@ -582,3 +583,112 @@ func _judith_twist_bone(index: int, pivot_model: Vector3, axis_model: Vector3, d
 	var local := parent_pose.affine_inverse() * target
 	skel.set_bone_pose_position(index, local.origin)
 	skel.set_bone_pose_rotation(index, local.basis.orthonormalized().get_rotation_quaternion())
+
+
+# ------------------------------------------------------------------ marche additive
+# Les poses assises et debout préexistantes restent la référence.
+var _walk_bones := {}
+var _walk_meshes: Array = []
+var _walk_bound := false
+static var _walk_cache := {}
+
+func walk_reset() -> void:
+	if skel:
+		for bone in _walk_bones:
+			skel.set_bone_pose_rotation(bone,_walk_bones[bone])
+	_walk_bones.clear()
+	if not skel and _walk_bound:
+		for entry in _static_meshes:
+			var mi: MeshInstance3D=entry.mi
+			for i in mi.get_blend_shape_count():mi.set_blend_shape_value(i,0.0)
+	_walk_bound=false
+
+func walk_update(phase: float,amount: float) -> void:
+	if skel:
+		if _walk_bones.is_empty():
+			for key in ["l_thigh","r_thigh","l_shin","r_shin","l_arm","r_arm","l_fore","r_fore"]:
+				if _bones.has(key):
+					var index: int=_bones[key]
+					_walk_bones[index]=skel.get_bone_pose_rotation(index)
+		for bone in _walk_bones:
+			skel.set_bone_pose_rotation(bone,_walk_bones[bone])
+		for side_index in 2:
+			var side: String="l" if side_index==0 else "r"
+			var wave:=sin(phase+PI*side_index)
+			_turn(_bones.get(side+"_thigh",-1),Vector3.RIGHT,-wave*23.0*amount)
+			_turn(_bones.get(side+"_shin",-1),Vector3.RIGHT,maxf(0.0,-wave)*38.0*amount)
+			_turn(_bones.get(side+"_arm",-1),Vector3.RIGHT,wave*14.0*amount)
+			_turn(_bones.get(side+"_fore",-1),Vector3.RIGHT,-maxf(0.0,wave)*8.0*amount)
+		return
+	if not _walk_bound:
+		_walk_bind_static()
+	var frame:=fposmod(phase,TAU)/TAU*4.0
+	var first:=int(floor(frame))%4
+	var second: int=(first+1)%4
+	var blend:=frame-floorf(frame)
+	for entry in _static_meshes:
+		var mi: MeshInstance3D=entry.mi
+		for i in 4:
+			mi.set_blend_shape_value(i,amount*((1.0-blend) if i==first else (blend if i==second else 0.0)))
+
+
+# Quatre poses de marche partagées, interpolées par le GPU (pas de déformation
+# de tous les sommets en GDScript à chaque image). Matériaux et UV conservés.
+func _walk_bind_static() -> void:
+	if not _walk_cache.has(_cache_key):
+		var output: Array=[]
+		for entry in _static_meshes:
+			var mi: MeshInstance3D=entry.mi
+			var source: Mesh=mi.mesh
+			var mesh:=ArrayMesh.new()
+			for i in 4:mesh.add_blend_shape("Walk%d"%i)
+			mesh.blend_shape_mode=Mesh.BLEND_SHAPE_MODE_NORMALIZED
+			var rel: Transform3D=entry.rel
+			var inv:=rel.affine_inverse()
+			for surface in source.get_surface_count():
+				var arrays:=source.surface_get_arrays(surface)
+				arrays[Mesh.ARRAY_TANGENT]=null
+				var vertices: PackedVector3Array=arrays[Mesh.ARRAY_VERTEX]
+				var normals: PackedVector3Array=arrays[Mesh.ARRAY_NORMAL]
+				var shapes: Array[Array]=[]
+				for frame in 4:
+					var posed:=vertices.duplicate()
+					var posed_normals:=normals.duplicate()
+					for i in vertices.size():
+						var point:=rel*vertices[i]
+						var change:=_walk_static_transform(point,float(frame)*TAU/4.0)
+						posed[i]=inv*(change*point)
+						if normals.size()==vertices.size():
+							var basis:=inv.basis*change.basis*rel.basis
+							posed_normals[i]=(basis.inverse().transposed()*normals[i]).normalized()
+					var shape: Array=[]
+					shape.resize(Mesh.ARRAY_MAX)
+					shape[Mesh.ARRAY_VERTEX]=posed
+					if not normals.is_empty():shape[Mesh.ARRAY_NORMAL]=posed_normals
+					shapes.append(shape)
+				mesh.add_surface_from_arrays(source.surface_get_primitive_type(surface),arrays,shapes)
+				mesh.surface_set_material(surface,source.surface_get_material(surface))
+			output.append(mesh)
+		_walk_cache[_cache_key]=output
+	_walk_meshes=_walk_cache[_cache_key]
+	for i in _static_meshes.size():_static_meshes[i].mi.mesh=_walk_meshes[i]
+	_walk_bound=true
+
+
+func _walk_static_transform(point: Vector3,phase: float) -> Transform3D:
+	var height:=box.size.y
+	var y0:=box.position.y
+	var dx:=point.x-_body.x
+	var wave:=sin(phase+(PI if dx>0.0 else 0.0))
+	var hip_y:=y0+height*0.52
+	var knee_y:=y0+height*0.285
+	var leg_mask: float=(1.0-smoothstep(hip_y-height*0.08,hip_y+height*0.015,point.y)) \
+		*(1.0-smoothstep(height*0.14,height*0.19,absf(dx)))
+	if leg_mask>0.0:
+		var shin: float=(1.0-smoothstep(knee_y-height*0.025,knee_y+height*0.025,point.y))*leg_mask
+		return _rot_about(Vector3(point.x,hip_y,_body.z),Vector3.RIGHT,-wave*22.0*leg_mask) \
+			*_rot_about(Vector3(point.x,knee_y,_body.z),Vector3.RIGHT,maxf(0.0,-wave)*35.0*shin)
+	var arm: float=smoothstep(height*0.12,height*0.19,absf(dx)) \
+		*(1.0-smoothstep(y0+height*0.80,y0+height*0.86,point.y)) \
+		*smoothstep(y0+height*0.40,y0+height*0.50,point.y)
+	return _rot_about(Vector3(_body.x+signf(dx)*height*0.105,y0+height*0.815,_body.z),Vector3.RIGHT,wave*13.0*arm)

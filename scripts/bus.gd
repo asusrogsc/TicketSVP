@@ -361,14 +361,14 @@ func _build_bus() -> void:
 		Build.box(self, Vector3(0.2, 0.8, 0.1), Vector3(sx * 1.15, 1.6, L / 2), Color(0.72, 0.74, 0.77))
 	# avant : pare-brise + tableau de bord
 	Build.box(self, Vector3(W, 0.9, 0.3), Vector3(0, 0.45, -L / 2), Color(0.15, 0.15, 0.17))
-	Build.box(self, Vector3(W, H - 0.9, 0.05), Vector3(0, 0.9 + (H - 0.9) / 2, -L / 2 - 0.1), Color(0.7, 0.85, 0.95, 0.15), true, 0.05)
+	_bus_finish_window(Build.box(self, Vector3(W, H - 0.9, 0.05), Vector3(0, 0.9 + (H - 0.9) / 2, -L / 2 - 0.1), Color(0.7, 0.85, 0.95, 0.15), true, 0.05))
 	# côtés : soubassement, vitres, bandeau haut, montants
 	for side in [-1, 1]:
 		var x: float = side * W / 2
 		_tiles(Build.box(self, Vector3(0.1, 0.95, L), Vector3(x, 0.475, 0), Color(0.72, 0.74, 0.77)),
 			Vector2(1.5, 0.95), 0.0, 0.01, Color(0.78, 0.79, 0.81), Color(0.45, 0.46, 0.48), 0.02, 0.08, 0.55, false, true)
 		Build.box(self, Vector3(0.1, 0.45, L), Vector3(x, H - 0.225, 0), body.darkened(0.35))
-		Build.box(self, Vector3(0.04, 1.05, L), Vector3(x, 1.475, 0), Color(0.75, 0.88, 0.97, 0.18), true, 0.05)
+		_bus_finish_window(Build.box(self, Vector3(0.04, 1.05, L), Vector3(x, 1.475, 0), Color(0.75, 0.88, 0.97, 0.18), true, 0.05))
 		var pz := -L / 2 + 0.75
 		while pz < L / 2:
 			Build.box(self, Vector3(0.12, 1.05, 0.1), Vector3(x, 1.475, pz), Color(0.3, 0.32, 0.36), false)
@@ -380,6 +380,7 @@ func _build_bus() -> void:
 			d.set_meta("closed_z", dz + 0.3 * k)
 			d.set_meta("dir", k)
 			doors.append(d)
+			_bus_finish_door(d)
 		_metal(Build.box(self, Vector3(0.05, 1.0, 0.05), Vector3(W / 2 - 0.35, 0.5, dz - 0.85), Color(0.6, 0.62, 0.65), false), 0.3)   # pied du composteur
 		_rough(Build.box(self, Vector3(0.22, 0.4, 0.18), Vector3(W / 2 - 0.37, 1.0, dz - 0.85), Color(0.2, 0.21, 0.23), false), 0.45)   # boîtier
 		Build.box(self, Vector3(0.012, 0.36, 0.16), Vector3(W / 2 - 0.255, 1.0, dz - 0.85), Color(0.95, 0.75, 0.1), false)              # façade jaune
@@ -412,7 +413,7 @@ func _build_bus() -> void:
 	add_child(drv)
 	drv.controlled = true
 	Build.box(self, Vector3(0.5, 0.08, 0.5), Vector3(-0.75, 0.45, -5.2), Color(0.1, 0.1, 0.1), false)
-	Build.cylinder(self, 0.2, 0.04, Vector3(-0.75, 1.05, -5.6), Color(0.1, 0.1, 0.1)).rotation_degrees.x = 60
+	_bus_finish_wheel()
 	# afficheur de ligne
 	Build.box(self, Vector3(1.6, 0.25, 0.08), Vector3(0.3, 2.03, -5.45), Color(0.05, 0.05, 0.05), false)
 	display = Build.label3d(self, "", Vector3(0.3, 2.03, -5.4), 26, Color(1, 0.6, 0.1))
@@ -469,14 +470,17 @@ func _decorate_bus() -> void:
 	for dz in [-4.9, DOOR_Z]:
 		Build.box(self, Vector3(0.8, 0.012, 1.3), Vector3(W / 2 - 0.45, 0.006, dz), Color(0.95, 0.8, 0.1), false)
 	# revêtement de sol : petites pastilles antidérapantes
-	_tiles(Build.box(self, Vector3(W - 0.2, 0.008, L - 0.4), Vector3(0, 0.004, 0), Color(0.3, 0.31, 0.34), false),
-		Vector2(0.05, 0.05), 0.5, 0.012, Color(0.32, 0.33, 0.36), Color(0.22, 0.22, 0.24), 0.05, 0.3, 0.95, false, true)
+	_bus_finish_surface(Build.box(self, Vector3(W - 0.2, 0.008, L - 0.4), Vector3(0, 0.004, 0), Color(0.3, 0.31, 0.34), false), false)
 	# vitre arrière
 	var rear := Build.box(self, Vector3(W - 0.4, 0.8, 0.04), Vector3(0, 1.6, L / 2 - 0.06), Color(0.7, 0.85, 0.95, 0.2), false)
-	_metal(rear, 0.05, Color(0.7, 0.85, 0.95), 0.2)
+	_bus_finish_window(rear)
 	# tableau de bord lumineux
 	var dash := Build.box(self, Vector3(0.6, 0.25, 0.02), Vector3(-0.75, 0.95, -5.82), Color(0.1, 0.3, 0.5), false)
-	_glow(dash, Color(0.3, 0.7, 1.0), 0.8)
+	var dash_mat := _own_mat(dash)
+	dash_mat.albedo_color = Color(0.10,0.12,0.14)
+	dash_mat.roughness = 0.72
+	_bus_finish_soften(dash,0.008)
+	_bus_finish_dashboard()
 	_decorate_bus_hd()
 
 
@@ -960,6 +964,7 @@ var _scroll_z := 0.0
 
 ## Siège en tissu moucheté : assise rembourrée, dossier, coque plastique, poignée chromée.
 func _seat(sx: float, sz: float) -> void:
+	var finish_start := get_child_count()
 	var fabric := Color(0.13, 0.22, 0.5)
 	var shell := Color(0.25, 0.27, 0.3)
 	# coque plastique
@@ -967,15 +972,17 @@ func _seat(sx: float, sz: float) -> void:
 	_rough(Build.box(self, Vector3(0.46, 0.62, 0.05), Vector3(sx, 0.76, sz + 0.27), shell, false), 0.4)
 	# coussins en tissu
 	var cushion := Build.box(self, Vector3(0.42, 0.07, 0.42), Vector3(sx, 0.475, sz - 0.01), fabric)
-	_tiles(cushion, Vector2(0.012, 0.012), 0.5, 0.0, fabric, fabric, 0.25, 0.7, 1.0, false, true)
+	_bus_finish_surface(cushion, true)
 	var back := Build.box(self, Vector3(0.42, 0.52, 0.06), Vector3(sx, 0.78, sz + 0.235), fabric, false)
-	_tiles(back, Vector2(0.012, 0.012), 0.5, 0.0, fabric, fabric, 0.25, 0.7, 1.0, false, true)
+	_bus_finish_surface(back, true)
 	# appui-tête gris + poignée chromée au dos
 	_headrest(Vector3(sx, 1.08, sz + 0.25), 0.3)
 	_glow(Build.box(self, Vector3(0.42, 0.02, 0.065), Vector3(sx, 1.03, sz + 0.235), line.color, false), line.color, 0.15)
 	var grip := Build.cylinder(self, 0.014, 0.32, Vector3(sx, 1.0, sz + 0.31), Color(0.85, 0.86, 0.88))
 	grip.rotation_degrees.z = 90
 	_metal(grip, 0.2)
+	for i in range(finish_start,get_child_count()):
+		_bus_finish_soften(get_child(i),0.012)
 
 
 func _decorate_bus_hd() -> void:
@@ -988,7 +995,7 @@ func _decorate_bus_hd() -> void:
 		Build.box(self, Vector3(0.03, 0.04, L), Vector3(x, 2.0, 0), rubber, false)
 	# cloison vitrée derrière le chauffeur
 	var part := Build.box(self, Vector3(0.95, 1.2, 0.03), Vector3(-0.78, 1.25, -4.65), Color(0.75, 0.88, 0.95, 0.2))
-	_metal(part, 0.05, Color(0.75, 0.88, 0.95, 0.2), 0.2)
+	_bus_finish_window(part)
 	_metal(Build.box(self, Vector3(0.95, 0.65, 0.04), Vector3(-0.78, 0.33, -4.65), Color(0.28, 0.3, 0.33)), 0.5, null, 0.3)
 	# valideurs : écran vert et lecteur de carte sur chaque composteur
 	for dz in [-4.9, DOOR_Z]:
@@ -1180,17 +1187,21 @@ func _ad_panel(at: Vector3, side: int, ad: Array) -> void:
 
 ## Banquette du fond : un seul coussin sur toute la largeur, 5 places assises.
 func _rear_bench(L: float) -> void:
+	var finish_start := get_child_count()
 	var fabric := Color(0.13, 0.22, 0.5)
 	var z := L / 2 - 0.47
 	_rough(Build.box(self, Vector3(2.3, 0.42, 0.5), Vector3(0, 0.21, z), Color(0.25, 0.27, 0.3)), 0.4)          # coffre
 	var cushion := Build.box(self, Vector3(2.26, 0.08, 0.46), Vector3(0, 0.46, z - 0.01), fabric)
-	_tiles(cushion, Vector2(0.012, 0.012), 0.5, 0.0, fabric, fabric, 0.25, 0.7, 1.0, false, true)
+	_bus_finish_surface(cushion, true)
 	var back := Build.box(self, Vector3(2.26, 0.6, 0.08), Vector3(0, 0.8, z + 0.25), fabric, false)
-	_tiles(back, Vector2(0.012, 0.012), 0.5, 0.0, fabric, fabric, 0.25, 0.7, 1.0, false, true)
+	_bus_finish_surface(back, true)
 	_glow(Build.box(self, Vector3(2.26, 0.02, 0.085), Vector3(0, 1.1, z + 0.25), line.color, false), line.color, 0.15)
 	for x in [-0.9, -0.45, 0.0, 0.45, 0.9]:
 		_headrest(Vector3(x, 1.2, z + 0.27), 0.28)
 		seats.append({"pos": Vector3(x, 0, z - 0.02), "p": null, "standing": false})
+
+	for i in range(finish_start,get_child_count()):
+		_bus_finish_soften(get_child(i),0.012)
 
 
 ## Appui-tête arrondi (capsule couchée) gris.
@@ -1204,3 +1215,167 @@ func _headrest(at: Vector3, width: float) -> void:
 	hr.position = at
 	hr.rotation_degrees.z = 90
 	add_child(hr)
+
+
+
+# ------------------------------------------------------------------ finitions visuelles isolées
+# Aucun RNG global, collider, siège logique, lumière ou timer supplémentaire.
+const _BUS_FINISH_SHADER := """
+shader_type spatial;
+uniform vec4 color : source_color = vec4(0.13, 0.25, 0.42, 1.0);
+uniform bool fabric = true;
+varying vec3 pos;
+varying vec3 nrm;
+float hash(vec2 p) {return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p) {
+	vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+	return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
+}
+void vertex() {pos=VERTEX; nrm=NORMAL;}
+void fragment() {
+	vec3 an=abs(nrm);
+	vec2 uv=an.y>0.6 ? pos.xz : (an.x>an.z ? pos.zy : pos.xy);
+	float footprint=max(length(dFdx(uv)),length(dFdy(uv)));
+	float detail=1.0-smoothstep(0.001,0.008,footprint);
+	float grain=noise(uv*280.0);
+	vec3 col=color.rgb;
+	if (fabric) {
+		float weave=sin(uv.x*2900.0)*sin(uv.y*2300.0);
+		float fleck=step(0.88,hash(floor(uv*vec2(95.0,72.0))));
+		col *= 0.97 + detail*(grain-0.5)*0.10 + detail*weave*0.022;
+		col=mix(col,color.rgb*1.28,fleck*detail*0.25);
+		ROUGHNESS=0.93; SPECULAR=0.18;
+	} else {
+		float wear=exp(-pow(pos.x/0.44,2.0));
+		col *= 0.97+(noise(uv*8.0)-0.5)*0.045+detail*(grain-0.5)*0.12+wear*0.025;
+		ROUGHNESS=0.93-wear*0.035; SPECULAR=0.20;
+	}
+	ALBEDO=col;
+}
+"""
+var _bus_finish_shader: Shader
+var _bus_finish_fabric: ShaderMaterial
+var _bus_finish_glass: StandardMaterial3D
+var _bus_finish_shapes := {}
+
+
+func _bus_finish_surface(n: Node, fabric: bool) -> void:
+	if _bus_finish_shader == null:
+		_bus_finish_shader = Shader.new()
+		_bus_finish_shader.code = _BUS_FINISH_SHADER
+	var mat: ShaderMaterial
+	if fabric and _bus_finish_fabric != null:
+		mat = _bus_finish_fabric
+	else:
+		mat = ShaderMaterial.new()
+		mat.shader = _bus_finish_shader
+		mat.set_shader_parameter("fabric", fabric)
+		mat.set_shader_parameter("color", Color(0.13,0.25,0.42) if fabric else Color(0.27,0.285,0.29))
+		if fabric:
+			_bus_finish_fabric = mat
+	_mesh_of(n).material_override = mat
+	_bus_finish_soften(n, 0.022, fabric)
+
+
+func _bus_finish_window(n: Node) -> void:
+	if _bus_finish_glass == null:
+		_bus_finish_glass = StandardMaterial3D.new()
+		_bus_finish_glass.albedo_color = Color(0.67,0.79,0.84,0.12)
+		_bus_finish_glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_bus_finish_glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_bus_finish_glass.roughness = 0.12
+		_bus_finish_glass.metallic = 0.0
+		_bus_finish_glass.metallic_specular = 0.5
+	var mi := _mesh_of(n)
+	mi.material_override = _bus_finish_glass
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+# Projection sur une boîte à coins ronds, normales analytiques et maillage partagé.
+# On change uniquement le mesh, jamais la CollisionShape3D de Build.box.
+func _bus_finish_soften(n: Node, radius: float, cushion: bool = false) -> void:
+	var mi := _mesh_of(n)
+	if mi == null or not mi.mesh is BoxMesh:
+		return
+	var size := (mi.mesh as BoxMesh).size
+	var r := minf(radius, minf(size.x,minf(size.y,size.z))*0.40)
+	var bend := cushion and size.y > 0.3 and size.z < 0.1
+	var key := str(size, ":", r, ":", bend)
+	if _bus_finish_shapes.has(key):
+		mi.mesh = _bus_finish_shapes[key]
+		return
+	var h := size*0.5
+	var core := h-Vector3.ONE*r
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for axis in 3:
+		var u := (axis+1)%3
+		var v := (axis+2)%3
+		var us := [-h[u],-h[u]+r*0.25,-h[u]+r*0.5,-core[u],0.0,core[u],h[u]-r*0.5,h[u]-r*0.25,h[u]]
+		var vs := [-h[v],-h[v]+r*0.25,-h[v]+r*0.5,-core[v],0.0,core[v],h[v]-r*0.5,h[v]-r*0.25,h[v]]
+		for side in [-1.0,1.0]:
+			for row in 8:
+				for col in 8:
+					var corners: Array[Vector3] = []
+					var normals: Array[Vector3] = []
+					for ij in [Vector2i(col,row),Vector2i(col+1,row),Vector2i(col+1,row+1),Vector2i(col,row+1)]:
+						var p := Vector3.ZERO
+						p[axis]=side*h[axis]; p[u]=us[ij.x]; p[v]=vs[ij.y]
+						var q := p.clamp(-core,core)
+						var normal := (p-q).normalized()
+						p=q+normal*r
+						if bend:
+							var x := p.x/h.x
+							var y := p.y/h.y
+							p.z += 0.008*(1.0-x*x)*(1.0-y*y)
+							normal=Vector3(normal.x+normal.z*0.016*x/h.x*(1.0-y*y),normal.y+normal.z*0.016*y/h.y*(1.0-x*x),normal.z).normalized()
+						corners.append(p); normals.append(normal)
+					var order := [0,2,1,0,3,2] if side > 0 else [0,1,2,0,2,3]
+					for k in order:
+						st.set_normal(normals[k]); st.set_uv(Vector2(corners[k][u],corners[k][v])); st.add_vertex(corners[k])
+	st.index()
+	var mesh := st.commit()
+	_bus_finish_shapes[key]=mesh
+	mi.mesh=mesh
+
+
+func _bus_finish_door(door: Node3D) -> void:
+	_bus_finish_window(door)
+	var rubber := Color(0.075,0.085,0.095)
+	for z in [-0.282,0.282]:
+		_bus_finish_soften(Build.box(door,Vector3(0.075,1.98,0.034),Vector3(0,0,z),rubber,false,0.73),0.006)
+	for y in [-0.965,0.965,-0.42]:
+		_bus_finish_soften(Build.box(door,Vector3(0.075,0.038,0.57),Vector3(0,y,0),rubber,false,0.73),0.006)
+	_bus_finish_soften(Build.box(door,Vector3(0.067,0.51,0.53),Vector3(0,-0.70,0),Color(0.25,0.28,0.30),false,0.6),0.012)
+
+
+func _bus_finish_wheel() -> void:
+	var root := Node3D.new()
+	root.name = "VolantDetail"
+	root.position = Vector3(-0.75,1.05,-5.6)
+	root.rotation_degrees.x = 60
+	add_child(root)
+	var mi := MeshInstance3D.new()
+	var ring := TorusMesh.new()
+	ring.inner_radius=0.163; ring.outer_radius=0.20
+	ring.rings=32; ring.ring_segments=10
+	mi.mesh=ring
+	mi.material_override=Build.mat(Color(0.08,0.085,0.09),0.73)
+	root.add_child(mi)
+	Build.cylinder(root,0.054,0.034,Vector3.ZERO,Color(0.15,0.16,0.17))
+	for i in 3:
+		var a := TAU*float(i)/3.0
+		var tip := Vector3(cos(a),0,sin(a))*0.17
+		var rod := Build.cylinder(root,0.013,tip.length(),tip*0.5,Color(0.16,0.17,0.18))
+		rod.quaternion=Quaternion(Vector3.UP,tip.normalized())
+
+
+func _bus_finish_dashboard() -> void:
+	var screen := Build.box(self,Vector3(0.33,0.10,0.007),Vector3(-0.75,0.98,-5.805),Color(0.035,0.08,0.09),false)
+	_glow(screen,Color(0.045,0.15,0.16),0.24)
+	_bus_finish_soften(screen,0.003)
+	for i in 3:
+		var bar := Build.box(self,Vector3(0.048,0.008,0.003),Vector3(-0.85+i*0.10,0.984,-5.800),Color(0.47,0.72,0.65),false)
+		_glow(bar,Color(0.47,0.72,0.65),0.32)
+	for i in 5:
+		_bus_finish_soften(Build.box(self,Vector3(0.025,0.017,0.008),Vector3(-0.91+i*0.08,0.89,-5.804),Color(0.2,0.23,0.25),false),0.004)

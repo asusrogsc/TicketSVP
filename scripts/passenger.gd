@@ -12,6 +12,8 @@ var visual: Node3D
 var ordinary_visual: Node3D
 var ordinary_seated := true
 var base_y := 0.0           # remonte les petits gabarits pour qu'ils restent sur le siège
+var _walk: RefCounted
+
 var fit: ModelFit          # modèle .glb (s'il existe dans res://models/)
 
 
@@ -43,6 +45,7 @@ func _ready() -> void:
 	mark = Build.label3d(self, "★" if data.special else "", Vector3(0, 1.75, 0), 48, Color(1, 0.85, 0.3))
 	mark.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	set_seated(true)
+	_walk = preload("res://scripts/npc_walk.gd").new(self)
 
 
 ## Silhouette assise : jambes, buste, tête, cheveux (+ détails des personnages spéciaux)
@@ -118,6 +121,9 @@ func _build_figure() -> void:
 
 
 func set_seated(seated: bool) -> void:
+	if _walk != null:
+		_walk.reset()
+		_walk.set_seated(seated)
 	if ordinary_visual != null:
 		if ordinary_seated != seated:
 			preload("res://scripts/ordinary_visual.gd").set_pose(ordinary_visual, seated)
@@ -153,3 +159,8 @@ func set_result(dec: String, correct: bool) -> void:
 	name_tag.visible = true
 	mark.text = "✔" if dec == "valide" else "€"
 	mark.modulate = Color(0.3, 1, 0.4) if correct else Color(1, 0.35, 0.3)
+
+
+func _process(delta: float) -> void:
+	if _walk != null:
+		_walk.update(delta)

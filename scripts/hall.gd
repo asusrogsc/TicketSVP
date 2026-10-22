@@ -271,33 +271,10 @@ func _build_details() -> void:
 			Color.from_hsv(0.08 if fx < 0 else 0.55, 0.35, 0.75), false)
 		_make_fabric(pic)
 
-	# plante verte dans le coin
-	var pot := Build.cylinder(self, 0.18, 0.35, Vector3(-2.15, 0.175, 2.9), Color(0.75, 0.4, 0.25))
-	_make_fabric(pot)
-	for i in 5:
-		var leaf := MeshInstance3D.new()
-		var sm := SphereMesh.new()
-		sm.radius = 0.2
-		sm.height = 0.5
-		leaf.mesh = sm
-		leaf.material_override = Build.mat(Color(0.2, 0.45 + 0.04 * i, 0.22))
-		leaf.position = Vector3(-2.15 + sin(i * 1.3) * 0.12, 0.6 + i * 0.07, 2.9 + cos(i * 1.3) * 0.12)
-		leaf.rotation_degrees = Vector3(20 * sin(i), i * 70, 15)
-		add_child(leaf)
-
-	# deuxième plante plus grande près de la fenêtre
-	var pot2 := Build.cylinder(self, 0.25, 0.4, Vector3(2.44, 1.45, 1.55), Color(0.7, 0.55, 0.3))
-	_make_fabric(pot2)
-	for i in 10:
-		var leaf2 := MeshInstance3D.new()
-		var sm2 := SphereMesh.new()
-		sm2.radius = 0.35
-		sm2.height = 0.7
-		leaf2.mesh = sm2
-		leaf2.material_override = Build.mat(Color(0.3, 0.55, 0.35), 0.9)
-		leaf2.position = Vector3(2.44 + sin(i * 1.5) * 0.1, 1.45 + i * 0.05, 1.55 + cos(i * 1.5) * 0.1)
-		leaf2.rotation_degrees = Vector3(30 * sin(i), i * 80, 15)
-		add_child(leaf2)
+	# Plantes : feuilles courbes et pots creux, sans collision supplémentaire.
+	_hall_plant_build(Vector3(-2.15, 0.0, 2.9), false)
+	# Appui de fenêtre : le pot repose à y=1.10 et reste en retrait de la vitre.
+	_hall_plant_build(Vector3(2.35, 1.10, 1.55), true)
 
 	# paillasson devant la porte
 	var mat := Build.box(self, Vector3(0.9, 0.025, 0.55), Vector3(0, 0.013, -3.05), Color(0.45, 0.35, 0.22), false)
@@ -993,3 +970,197 @@ func _chamfer_box(size: Vector3, r: float) -> ArrayMesh:
 			st.set_uv(Vector2(p.x + p.z, p.y))
 			st.add_vertex(p)
 	return st.commit()
+
+
+# ------------------------------------------------------------------ plantes décoratives
+# Géométrie opaque, sans texture externe, animation, collision ni tirage RNG global.
+const _HALL_LEAF_SHADER := """
+shader_type spatial;
+render_mode cull_disabled;
+void fragment() {
+	if (!FRONT_FACING) { NORMAL = -NORMAL; }
+	float edge = abs(UV.x - 0.5) * 2.0;
+	float rib = 1.0 - smoothstep(0.006, 0.018, abs(UV.x - 0.5));
+	float phase = UV.y * 9.0 + abs(UV.x - 0.5) * 4.0;
+	float veins = 1.0 - smoothstep(0.012, 0.045 + fwidth(phase), abs(fract(phase) - 0.5));
+	vec3 leaf_color = COLOR.rgb;
+	if (!OUTPUT_IS_SRGB) {
+		leaf_color = mix(leaf_color / 12.92, pow((leaf_color + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), leaf_color));
+	}
+	ALBEDO = leaf_color * (1.04 - 0.12 * edge + 0.13 * rib + 0.045 * veins);
+	ROUGHNESS = 0.59;
+	SPECULAR = 0.25;
+	BACKLIGHT = leaf_color * 0.08;
+}
+"""
+
+func _hall_plant_material(color: Color, roughness: float) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = roughness
+	mat.metallic_specular = 0.25
+	return mat
+
+
+# Profil tourné : flanc conique, lèvre arrondie et intérieur réellement creusé.
+func _hall_plant_lathe(parent: Node3D, profile: PackedVector2Array, mat: Material, label: String) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for j in range(profile.size() - 1):
+		for i in 48:
+			var a := TAU * float(i) / 48.0
+			var b := TAU * float(i + 1) / 48.0
+			var p := profile[j]
+			var q := profile[j + 1]
+			var v := [Vector3(cos(a)*p.x, p.y, sin(a)*p.x), Vector3(cos(b)*p.x, p.y, sin(b)*p.x),
+				Vector3(cos(a)*q.x, q.y, sin(a)*q.x), Vector3(cos(b)*q.x, q.y, sin(b)*q.x)]
+			for k in [0, 1, 2, 1, 3, 2]:
+				st.add_vertex(v[k])
+	st.generate_normals()
+	st.index()
+	var mi := MeshInstance3D.new()
+	mi.name = label
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	parent.add_child(mi)
+
+
+func _hall_plant_blade_point(start: Vector3, direction: Vector3, length: float, width: float,
+		rise: float, droop: float, t: float, s: float) -> Vector3:
+	var side := Vector3(-direction.z, 0.0, direction.x).normalized()
+	var shape := pow(maxf(0.0, sin(PI * t)), 0.78)
+	var fold := width * shape * (0.075 - 0.16 * pow(absf(s), 1.4))
+	return start + direction * length * t + side * s * width * 0.5 * shape \
+		+ Vector3.UP * (rise * sin(PI * t) - droop * t * t + fold)
+
+
+# Une feuille est une surface courbe nervurée, pas une sphère ni un plan alpha.
+func _hall_plant_blade(st: SurfaceTool, start: Vector3, direction: Vector3, length: float,
+		width: float, rise: float, droop: float, color: Color) -> void:
+	var vertices: Array[Vector3] = []
+	var normals: Array[Vector3] = []
+	var uvs: Array[Vector2] = []
+	for row in 13:
+		var t := float(row) / 12.0
+		for col in 5:
+			var s := float(col) * 0.5 - 1.0
+			var point := _hall_plant_blade_point(start, direction, length, width, rise, droop, t, s)
+			var dt := _hall_plant_blade_point(start, direction, length, width, rise, droop, minf(t + 0.002, 0.999), s) \
+				- _hall_plant_blade_point(start, direction, length, width, rise, droop, maxf(t - 0.002, 0.001), s)
+			var ds := _hall_plant_blade_point(start, direction, length, width, rise, droop, clampf(t, 0.001, 0.999), s + 0.002) \
+				- _hall_plant_blade_point(start, direction, length, width, rise, droop, clampf(t, 0.001, 0.999), s - 0.002)
+			vertices.append(point)
+			normals.append(ds.cross(dt).normalized())
+			uvs.append(Vector2(float(col) / 4.0, t))
+	for row in 12:
+		for col in 4:
+			var a := row * 5 + col
+			for k in [a, a + 5, a + 1, a + 1, a + 5, a + 6]:
+				st.set_normal(normals[k])
+				st.set_uv(uvs[k])
+				st.set_color(color)
+				st.add_vertex(vertices[k])
+
+
+# Petits tubes suivant une courbe de Bézier ; même maillage pour toutes les tiges.
+func _hall_plant_stem(st: SurfaceTool, start: Vector3, control: Vector3, finish: Vector3, radius: float) -> void:
+	var rings: Array[Vector3] = []
+	for j in 9:
+		var t := float(j) / 8.0
+		var center := start * (1.0-t)*(1.0-t) + control * 2.0*t*(1.0-t) + finish * t*t
+		var tangent := ((control-start)*(1.0-t) + (finish-control)*t).normalized()
+		var side := tangent.cross(Vector3.FORWARD).normalized()
+		if side.length_squared() < 0.01:
+			side = tangent.cross(Vector3.RIGHT).normalized()
+		var other := tangent.cross(side).normalized()
+		for i in 8:
+			var a := TAU * float(i) / 8.0
+			rings.append(center + (side*cos(a) + other*sin(a)) * radius * (1.0 - 0.35*t))
+	for j in 8:
+		for i in 8:
+			var a := j*8+i
+			var b := j*8+(i+1)%8
+			for k in [a, a+8, b, b, a+8, b+8]:
+				st.add_vertex(rings[k])
+
+
+func _hall_plant_finish_mesh(parent: Node3D, st: SurfaceTool, mat: Material, label: String, normals: bool) -> void:
+	if normals:
+		st.generate_normals()
+	st.index()
+	var mi := MeshInstance3D.new()
+	mi.name = label
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	parent.add_child(mi)
+
+
+func _hall_plant_build(origin: Vector3, window_plant: bool) -> void:
+	var root := Node3D.new()
+	root.name = "PlanteFenetre" if window_plant else "PlanteCoin"
+	root.position = origin
+	add_child(root)
+	var radius := 0.13 if window_plant else 0.18
+	var height := 0.28 if window_plant else 0.35
+	var ceramic := _hall_plant_material(Color(0.72, 0.69, 0.59) if window_plant else Color(0.67, 0.36, 0.23), 0.46 if window_plant else 0.79)
+	var profile := PackedVector2Array([
+		Vector2(radius*0.64, height*0.05), Vector2(radius*0.69, height*0.09),
+		Vector2(radius*0.92, height*0.86), Vector2(radius*0.99, height*0.93),
+		Vector2(radius, height*0.98), Vector2(radius*0.97, height),
+		Vector2(radius*0.88, height), Vector2(radius*0.86, height*0.95),
+		Vector2(radius*0.86, height*0.86)])
+	_hall_plant_lathe(root, profile, ceramic, "PotCreux")
+	_hall_plant_lathe(root, PackedVector2Array([
+		Vector2(0.0, 0.0), Vector2(radius*1.04, 0.0), Vector2(radius*1.08, 0.009),
+		Vector2(radius*1.08, 0.022), Vector2(radius*1.01, 0.022),
+		Vector2(radius*0.96, 0.014), Vector2(0.0, 0.014)]), ceramic, "Soucoupe")
+	var soil := CylinderMesh.new()
+	soil.top_radius = radius*0.865
+	soil.bottom_radius = radius*0.865
+	soil.height = 0.014
+	soil.radial_segments = 40
+	var earth := MeshInstance3D.new()
+	earth.name = "Terreau"
+	earth.mesh = soil
+	earth.position.y = height*0.89
+	earth.material_override = _hall_plant_material(Color(0.105, 0.065, 0.033), 1.0)
+	root.add_child(earth)
+	var leaves := SurfaceTool.new()
+	leaves.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var stems := SurfaceTool.new()
+	stems.begin(Mesh.PRIMITIVE_TRIANGLES)
+	if window_plant:
+		# Deux cannes fines ; feuillage déporté vers l'intérieur, jamais dans la vitre.
+		for head in 2:
+			var foot := Vector3(-0.025 + head*0.052, height*0.89, -0.018 + head*0.045)
+			var crown := Vector3(-0.055 + head*0.025, 0.94 - head*0.23, -0.01 + head*0.07)
+			_hall_plant_stem(stems, foot, (foot+crown)*0.5 + Vector3(-0.018,0,0), crown, 0.009)
+			for i in 13:
+				var angle := i*2.39996 + head*1.2
+				var direction := Vector3(cos(angle), 0.0, sin(angle))
+				if direction.x > 0.0:
+					direction.x *= 0.25
+				var start := crown + Vector3(0.0, float(i%4)*0.009, 0.0)
+				_hall_plant_blade(leaves, start, direction, 0.27 + float(i%4)*0.032,
+					0.037 + float(i%3)*0.008, 0.07 + float(i%3)*0.018, 0.12 + float(i%4)*0.025,
+					Color(0.23 + float(i%3)*0.018, 0.40 + float(i%4)*0.023, 0.14 + float(i%2)*0.02))
+	else:
+		# Touffe de feuilles larges : pétioles distincts, hauteurs et angles irréguliers.
+		for i in 11:
+			var angle := i*2.39996 + 0.35
+			var direction := Vector3(cos(angle), 0.0, sin(angle))
+			if direction.x < 0.0:
+				direction.x *= 0.60
+			var tier := float(i%4)
+			var foot := Vector3(sin(i*1.7)*0.035, height*0.89, cos(i*1.7)*0.035)
+			var start := direction*(0.035 + tier*0.014) + Vector3(0, 0.49 + tier*0.10, 0)
+			_hall_plant_stem(stems, foot, foot + Vector3(0, (start.y-foot.y)*0.7, 0), start, 0.005)
+			_hall_plant_blade(leaves, start, direction, 0.21 + float(i%3)*0.032,
+				0.105 + float(i%3)*0.023, 0.08 + tier*0.009, 0.065 + float(i%3)*0.018,
+				Color(0.16 + float(i%3)*0.02, 0.34 + float(i%4)*0.025, 0.13 + float(i%3)*0.014))
+	var shader := Shader.new()
+	shader.code = _HALL_LEAF_SHADER
+	var leaf_mat := ShaderMaterial.new()
+	leaf_mat.shader = shader
+	_hall_plant_finish_mesh(root, leaves, leaf_mat, "FeuillageCourbe", false)
+	_hall_plant_finish_mesh(root, stems, _hall_plant_material(Color(0.31, 0.26, 0.14) if window_plant else Color(0.19, 0.32, 0.12), 0.8), "Tiges", true)
